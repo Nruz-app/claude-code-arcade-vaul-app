@@ -1167,8 +1167,8 @@ a {
   min-width: 74px;
   color: var(--yellow);
 }
-/* ROCAS se juega con teclado. En pantallas pequeñas se avisa en vez de dejar al
-   jugador delante de una nave que no responde. */
+/* Los juegos con motor real se juegan con teclado. En pantallas pequeñas se
+   avisa en vez de dejar al jugador delante de una partida que no responde. */
 .game-keyboard-note {
   display: none;
 }

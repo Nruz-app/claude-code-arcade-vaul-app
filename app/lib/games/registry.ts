@@ -1,16 +1,18 @@
 // ===== app/lib/games/registry.ts =====
 // Qué juegos tienen motor real. La clave es el id de GAMES (app/lib/data.ts).
 // Lo que no esté aquí cae en el reproductor simulado, que es lo que hoy usan
-// los otros siete juegos del catálogo.
+// los otros seis juegos del catálogo.
 //
 // Es Partial a propósito: al indexar con un id cualquiera el tipo resultante es
 // GameFactory | undefined, así que el despachador está obligado a comprobarlo.
 
 import { createAsteroidsGame } from "./asteroids";
+import { createTetrisGame } from "./tetris";
 import type { GameFactory } from "./types";
 
 export const GAME_ENGINES: Partial<Record<string, GameFactory>> = {
   rocas: createAsteroidsGame,
+  caida: createTetrisGame,
 };
 
 // Teclas que anuncia el overlay de arranque del reproductor. Viven aquí y no
@@ -27,6 +29,13 @@ export const GAME_CONTROLS: Partial<Record<string, readonly ControlHint[]>> = {
     ["← →", "ROTAR"],
     ["↑", "PROPULSAR"],
     ["ESPACIO", "DISPARAR"],
+    ["ESC", "PAUSA"],
+  ],
+  caida: [
+    ["← →", "MOVER"],
+    ["↑ / X", "ROTAR"],
+    ["↓", "BAJAR"],
+    ["ESPACIO", "SOLTAR"],
     ["ESC", "PAUSA"],
   ],
 };

@@ -86,10 +86,12 @@ const ROWS = 20;
 const BLOCK = 28; // 10×28 = 280 de ancho, 20×28 = 560 de alto
 
 // El tablero no llena el canvas: se coloca a la izquierda del centro y el panel
-// de la pieza siguiente ocupa el hueco de la derecha.
-const BOARD_X = 150;
+// de la pieza siguiente ocupa el hueco de la derecha. El conjunto mide 428
+// (pozo 280 + hueco 60 + panel 88) y queda centrado con 186 px libres a cada
+// lado; si cambia PREVIEW_BLOCK hay que recalcular estos dos valores.
+const BOARD_X = 186;
 const BOARD_Y = 20; // (600 − 560) / 2
-const PANEL_X = 490;
+const PANEL_X = 526;
 
 const LINE_SCORES = [0, 100, 300, 500, 800]; // × nivel
 const DROP_BASE = 1000; // ms entre caídas en el nivel 1
@@ -112,13 +114,16 @@ Paleta neón de ocho colores: los cuatro tokens del tema (`--cyan`, `--yellow`, 
 Como en `asteroids.ts`, van como literales con un comentario que recuerde que duplican los
 tokens de `:root`.
 
+La tabla va indexada desde 0, sin el hueco inicial: en el tablero una celda vacía es `0`
+y una ocupada guarda el **tipo de pieza** (`1..8`), así que el color de una celda es
+`COLORS[celda - 1]`.
+
 ```ts
 const COLORS = [
-  null,
   "#00f5ff", // I — --cyan
   "#f5ff00", // O — --yellow
   "#ff006e", // T — --magenta
-  "#00ff9d", // S — --green
+  "#00ff88", // S — --green
   "#ff5c00", // Z — naranja neón
   "#4d7cff", // J — azul eléctrico
   "#b14dff", // L — violeta
@@ -131,7 +136,7 @@ const COLORS = [
 Todo dentro del closure de `createTetrisGame`, nada a nivel de módulo:
 
 ```ts
-let board: number[][]; // ROWS × COLS; 0 = vacío, 1..8 = índice de color
+let board: number[][]; // ROWS × COLS; 0 = vacío, 1..8 = tipo de pieza
 let current: Piece; // { type, shape, x, y }
 let next: Piece;
 let score: number;
@@ -197,7 +202,10 @@ Hasta el paso 5 nada se monta en pantalla y la app se comporta como hoy.
    `draw()`, `loop(ts)` con `dt` capado a 50 ms, `stopLoop()` y el `GameHandle`:
    - `start()` re-entrante (`stopLoop()` antes de `initGame()`), emite los tres callbacks
      forzados para resetear el HUD.
-   - `pause()` / `resume()` con `input.clear()` al pausar.
+   - `pause()` / `resume()` con `input.clear()` **en ambos**. Al pausar, para no
+     reanudar con una tecla que el jugador ya soltó; y al reanudar, porque los listeners
+     siguen enganchados con el juego congelado: sin ese segundo `clear()`, pulsar ESPACIO
+     durante la pausa suelta la pieza nada más volver.
    - `end()` con la guardia `if (state === "gameover") return;`.
    - `destroy()` = `stopLoop()` + `input.detach()`, sin emitir nada.
      `elapsedMs += dt * 1000` solo mientras `state === "playing"`.
@@ -263,6 +271,8 @@ Hasta el paso 5 nada se monta en pantalla y la app se comporta como hoy.
 - [ ] El HUD muestra un corazón durante la partida y ninguno al terminar.
 - [ ] El canvas **no** dibuja puntuación, nivel, GAME OVER ni overlay de pausa.
 - [ ] `Escape` y el botón PAUSA congelan el juego; cambiar de pestaña también.
+- [ ] Teclear con la partida en pausa no tiene efecto al reanudar: pulsar `Espacio`
+      durante la pausa **no** suelta la pieza al volver.
 - [ ] Al terminar se abre el modal "FIN DEL JUEGO" con la puntuación final.
 - [ ] El botón FIN termina la partida y abre el modal con lo puntuado.
 - [ ] "JUGAR DE NUEVO" reinicia con puntuación 0, nivel 1 y el tablero vacío.
