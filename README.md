@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Arcade Vault
 
-## Getting Started
+Es una plataforma para jugar online y competir por la mayor cantidad de puntos.
 
-First, run the development server:
+## Puesta en marcha
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env   # y rellena los valores
+npm run dev            # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Variables de entorno
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`.env` no se versiona. Copia `.env.example` y rellena los dos valores desde el
+dashboard de Supabase, en **Project Settings → API Keys**:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable                               | De dónde sale                                            |
+| -------------------------------------- | -------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`             | Project URL                                              |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key (`sb_publishable_…`)                     |
+| `SUPABASE_DB_PASS`                     | Solo la usa el CLI de Supabase; la aplicación no la lee. |
 
-## Learn More
+Las dos primeras llevan el prefijo `NEXT_PUBLIC_` porque viajan al navegador.
+La clave publicable es pública por diseño: lo que protege los datos son las
+políticas RLS, no el secreto de la clave. La `service_role` no se usa en este
+proyecto y no debe acabar en el repositorio.
 
-To learn more about Next.js, take a look at the following resources:
+### Base de datos
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+El esquema vive en `supabase/migrations/`. Para recrearlo en un proyecto nuevo,
+aplica los archivos en orden de nombre. `20260809191140_profiles.sql` crea la
+tabla `public.profiles`, sus políticas RLS y el trigger `on_auth_user_created`,
+que es quien inserta el perfil al registrarse: la aplicación nunca hace `insert`
+sobre esa tabla.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+En **Authentication → Sign In / Providers → Email**, la opción **Confirm email**
+debe estar **desactivada**. Con ella activada, `signUp` no devuelve sesión y el
+registro muestra "REVISA TU CORREO PARA CONFIRMAR LA CUENTA" en lugar de entrar
+directo a la biblioteca.
 
-## Deploy on Vercel
+## Usa Spec Driven Design
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Basado en /spec y /spec-impl
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Siguiendo las buenas practicas recomendadas aquí:
+https://github.com/Klerith/fernando-skills
+
+## Skills usadas
+
+```bash
+npx skills@latest add Klerith/fernando-skills
+```
+
+```bash
+npx skills add https://github.com/anthropics/skills --skill frontend-design
+```

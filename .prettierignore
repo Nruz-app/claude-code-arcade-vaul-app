@@ -1,0 +1,14 @@
+# Generados o de terceros
+node_modules
+.next
+out
+build
+package-lock.json
+
+# Mockups de referencia en JSX/HTML: material de consulta, no código de la app.
+# ESLint también los ignora (ver eslint.config.mjs).
+references
+
+# Capturas y artefactos de sesiones
+.playwright-screenshots
+.playwright-mcp

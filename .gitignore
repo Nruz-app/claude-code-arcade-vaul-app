@@ -1,5 +1,13 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Capturas y artefactos de sesiones de Playwright.
+# El contenido de .playwright-mcp/ se ignora con /* y no excluyendo la carpeta:
+# git no puede reincluir un archivo cuyo directorio padre está excluido, y así
+# la excepción de .gitkeep sí surte efecto y la carpeta se mantiene versionada.
+.playwright-screenshots
+.playwright-mcp/*
+!.playwright-mcp/.gitkeep
+
 # dependencies
 /node_modules
 /.pnp
@@ -32,6 +40,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +48,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# claude code (configuración personal, no del equipo)
+.claude/settings.local.json
