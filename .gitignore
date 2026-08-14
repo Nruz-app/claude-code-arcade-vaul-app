@@ -8,6 +8,9 @@
 .playwright-mcp/*
 !.playwright-mcp/.gitkeep
 
+.env
+.env.example
+
 # dependencies
 /node_modules
 /.pnp
