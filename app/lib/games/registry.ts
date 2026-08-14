@@ -1,18 +1,24 @@
 // ===== app/lib/games/registry.ts =====
 // Qué juegos tienen motor real. La clave es el id de GAMES (app/lib/data.ts).
 // Lo que no esté aquí cae en el reproductor simulado, que es lo que hoy usan
-// los otros seis juegos del catálogo.
+// los otros cuatro juegos del catálogo.
 //
 // Es Partial a propósito: al indexar con un id cualquiera el tipo resultante es
 // GameFactory | undefined, así que el despachador está obligado a comprobarlo.
 
+import { createArkanoidGame } from "./arkanoid";
 import { createAsteroidsGame } from "./asteroids";
+import { createFroggerGame } from "./frogger";
+import { createSnakeGame } from "./snake";
 import { createTetrisGame } from "./tetris";
 import type { GameFactory } from "./types";
 
 export const GAME_ENGINES: Partial<Record<string, GameFactory>> = {
   rocas: createAsteroidsGame,
   caida: createTetrisGame,
+  "bloque-buster": createArkanoidGame,
+  serpentina: createSnakeGame,
+  ranaria: createFroggerGame,
 };
 
 // Teclas que anuncia el overlay de arranque del reproductor. Viven aquí y no
@@ -36,6 +42,27 @@ export const GAME_CONTROLS: Partial<Record<string, readonly ControlHint[]>> = {
     ["↑ / X", "ROTAR"],
     ["↓", "BAJAR"],
     ["ESPACIO", "SOLTAR"],
+    ["ESC", "PAUSA"],
+  ],
+  // BLOQUE BUSTER no usa ESPACIO: la pelota sale sola. Es lo que evita que la
+  // misma tecla que arranca la partida desde el overlay haga algo dentro.
+  "bloque-buster": [
+    ["← →", "MOVER PALETA"],
+    ["RATÓN", "MOVER PALETA"],
+    ["ESC", "PAUSA"],
+  ],
+  // SERPENTINA tampoco usa ESPACIO: la serpiente arranca sola hacia la derecha,
+  // así que la tecla que abre la partida desde el overlay no hace nada dentro.
+  serpentina: [
+    ["← → ↑ ↓", "GIRAR"],
+    ["W A S D", "GIRAR"],
+    ["ESC", "PAUSA"],
+  ],
+  // RANARIA tampoco usa ESPACIO: la rana solo salta con flechas o WASD, así que
+  // la tecla que abre la partida desde el overlay no hace nada dentro.
+  ranaria: [
+    ["← → ↑ ↓", "SALTAR"],
+    ["W A S D", "SALTAR"],
     ["ESC", "PAUSA"],
   ],
 };

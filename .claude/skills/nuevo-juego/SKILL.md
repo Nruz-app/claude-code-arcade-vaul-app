@@ -160,13 +160,25 @@ Orden de trabajo:
 3. **El motor** en `app/lib/games/<juego>.ts`, en los pasos que fijó la spec.
 4. **Registro**: una línea en `GAME_ENGINES` y otra en `GAME_CONTROLS`, las dos en
    `app/lib/games/registry.ts`.
+5. **Pruebas** en `tests/games/<juego>.test.ts`. La suite compartida cubre las invariantes
+   de `contrato.md`, así que hereda las 27 comprobaciones con una línea:
+
+   ```ts
+   import { verificaContrato } from "../harness/contrato";
+   verificaContrato("NOMBRE", createXGame);
+   ```
+
+   Añade después lo propio del juego, que es lo que la suite compartida no puede saber:
+   si tiene vidas o emite `onLives(1)`/`onLives(0)`, si engancha algo más que el teclado,
+   si depende de un asset que puede no cargar. Copia el patrón de `tests/games/snake.test.ts`.
 
 Ve marcando los pasos de la spec conforme los cierres.
 
 ### Fase 5 — Verificar
 
-1. `npm run lint` y `npm run build`. No hay runner de tests en el proyecto: esto es la
-   validación, y `build` es además lo único que comprueba los tipos.
+1. `npm run test:run`, `npm run lint` y `npm run build`. Las pruebas del contrato son la
+   primera red —cazan el bucle que no se para, el `onGameOver` duplicado y el `dt` sin
+   capar— y `build` es lo único que comprueba las convenciones del App Router.
 2. Comprobación jugable con el MCP de Playwright, levantando `npm run dev` y navegando a
    `/juego/<id>/jugar`:
    - El overlay de arranque muestra **los controles del juego** y no arranca hasta ESPACIO.

@@ -219,6 +219,27 @@ setters con deduplicación → `summary(reason)` → funciones internas (`initGa
 
 ---
 
+## Las invariantes están probadas
+
+No hace falta releer esta lista comprobando una por una: `tests/harness/contrato.ts` las
+tiene convertidas en aserciones, y un motor nuevo las hereda todas con una línea en
+`tests/games/<juego>.test.ts`:
+
+```ts
+import { verificaContrato } from "../harness/contrato";
+verificaContrato("SERPENTINA", createSnakeGame);
+```
+
+Lo que cubre: que la factory no arranque el bucle (nº 1), que dos instancias no compartan
+estado (nº 1), que `start()` sea re-entrante y fuerce los tres callbacks (nº 8), que los
+callbacks se emitan solo al cambiar (nº 8), que el tiempo en pausa no cuente (nº 6), que
+el `dt` esté capado (nº 7), que `end()` tenga guardia y `destroy()` no emita (nº 9), y que
+`destroy()` suelte los listeners de `window` (nº 5).
+
+Lo que **no** puede cubrir, y sigue siendo cosa tuya: la resolución 800×600 (nº 3, es una
+constante por módulo — asértala en el archivo del juego), que no dibujes HUD dentro del
+canvas (nº 4) y que los colores salgan del tema (nº 10).
+
 ## Qué NO tocar al portar un juego
 
 - **`app/juego/[id]/jugar/page.tsx`** — el reproductor ya es genérico. Si crees que hay que
