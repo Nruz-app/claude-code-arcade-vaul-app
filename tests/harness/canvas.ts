@@ -39,12 +39,28 @@ const PROPIEDADES_INICIALES: Record<string, unknown> = {
 // tener que mirar píxeles.
 export interface ContextoFalso {
   llamadas: number;
+  // Todo color que el motor ha asignado al contexto, en orden. Es lo que hace
+  // comprobable la invariante nº 10 del contrato: que ningún literal se cuele
+  // fuera de la paleta. Ningún motor usa gradientes ni patrones, así que las
+  // tres propiedades de abajo son el 100 % del color que llega al canvas.
+  colores: string[];
 }
+
+const PROPIEDADES_DE_COLOR = new Set([
+  "fillStyle",
+  "strokeStyle",
+  "shadowColor",
+]);
+
+// La prueba de aguante hace 600 fotogramas y cada uno asigna decenas de
+// colores: sin tope, el historial crece sin sentido. Con esto sobra para
+// afirmar sobre los primeros cientos de fotogramas, que es lo que se mide.
+const TOPE_DE_COLORES = 20000;
 
 const registros = new WeakMap<object, ContextoFalso>();
 
 function creaContexto2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
-  const registro: ContextoFalso = { llamadas: 0 };
+  const registro: ContextoFalso = { llamadas: 0, colores: [] };
   const noop = () => {
     registro.llamadas++;
   };
@@ -76,6 +92,13 @@ function creaContexto2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
       return noop;
     },
     set(destino, prop, valor) {
+      if (
+        typeof valor === "string" &&
+        PROPIEDADES_DE_COLOR.has(prop as string) &&
+        registro.colores.length < TOPE_DE_COLORES
+      ) {
+        registro.colores.push(valor);
+      }
       destino[prop] = valor;
       return true;
     },
@@ -88,6 +111,20 @@ function creaContexto2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
 // Cuántas operaciones de dibujo ha recibido un contexto de estos.
 export function llamadasDeDibujo(ctx: CanvasRenderingContext2D): number {
   return registros.get(ctx as unknown as object)?.llamadas ?? 0;
+}
+
+// Todo color asignado al contexto desde que existe, en orden de asignación.
+export function coloresUsados(
+  ctx: CanvasRenderingContext2D,
+): readonly string[] {
+  return registros.get(ctx as unknown as object)?.colores ?? [];
+}
+
+// Vacía el historial de color sin tocar el contador de dibujo. Sirve para medir
+// solo los fotogramas que interesan, ignorando los de la construcción.
+export function olvidaColores(ctx: CanvasRenderingContext2D) {
+  const registro = registros.get(ctx as unknown as object);
+  if (registro) registro.colores.length = 0;
 }
 
 // Parchea el prototipo una sola vez, desde setupFiles. Cada canvas conserva su

@@ -6,12 +6,14 @@
 
 import { describe, expect, it } from "vitest";
 
-import { H, W, createSnakeGame } from "@/app/lib/games/snake";
+import { H, SKINS_SERPENTINA, W, createSnakeGame } from "@/app/lib/games/snake";
 
 import { verificaContrato } from "../harness/contrato";
 import { montaMotor } from "../harness/motor";
+import { verificaSkins } from "../harness/skins";
 
 verificaContrato("SERPENTINA", createSnakeGame);
+verificaSkins("SERPENTINA", createSnakeGame, SKINS_SERPENTINA);
 
 describe("SERPENTINA: resolución", () => {
   it("usa el canvas de 800×600 que fija el reproductor", () => {

@@ -5,6 +5,8 @@
 //
 // El motor no importa React ni toca el DOM fuera del canvas que recibe.
 
+import type { SkinId } from "./skins";
+
 // "surrender" = el jugador pulsó FIN en lugar de quedarse sin vidas.
 export type GameOverReason = "game_over" | "surrender";
 
@@ -33,7 +35,19 @@ export interface GameHandle {
   destroy: () => void; // cancela el rAF y quita los listeners
 }
 
+// El skin entra por aquí, y no por el registro, porque un color de canvas solo
+// puede aplicarlo quien llama a ctx.fillStyle: el reproductor monta el elemento
+// pero nunca dibuja en él. GameHandle no cambia —sigue con sus cinco métodos—,
+// igual que no cambió al añadir GAME_CONTROLS: lo que se amplía es la entrada de
+// la factory, que ya es por donde el motor recibe todo lo que viene de fuera.
+//
+// Es opcional y cada motor lo declara CON VALOR POR DEFECTO (`skin = "neon"`),
+// nunca como `skin?`. Dos motivos: entrar a un juego sin elegir nada tiene que
+// verse exactamente como antes de que existieran los skins, y Function.length
+// no cuenta los parámetros con valor por defecto, así que la aridad que afirma
+// tests/games/registry.test.ts sigue siendo 2.
 export type GameFactory = (
   canvas: HTMLCanvasElement,
   callbacks: GameCallbacks,
+  skin?: SkinId,
 ) => GameHandle;

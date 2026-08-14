@@ -4,12 +4,14 @@
 
 import { describe, expect, it } from "vitest";
 
-import { H, W, createTetrisGame } from "@/app/lib/games/tetris";
+import { H, SKINS_CAIDA, W, createTetrisGame } from "@/app/lib/games/tetris";
 
 import { verificaContrato } from "../harness/contrato";
 import { montaMotor } from "../harness/motor";
+import { verificaSkins } from "../harness/skins";
 
 verificaContrato("CAÍDA", createTetrisGame);
+verificaSkins("CAÍDA", createTetrisGame, SKINS_CAIDA);
 
 describe("CAÍDA: resolución", () => {
   it("usa el canvas de 800×600 aunque el tablero sea de 300×600", () => {

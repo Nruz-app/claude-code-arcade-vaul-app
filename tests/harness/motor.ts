@@ -5,6 +5,7 @@
 
 import { vi } from "vitest";
 
+import type { SkinId } from "@/app/lib/games/skins";
 import type {
   GameCallbacks,
   GameFactory,
@@ -57,14 +58,18 @@ export interface MotorMontado extends Espias {
 // `relojCompartido` sirve para montar dos motores a la vez: `instalaReloj()`
 // pisa el rAF global, así que sin reusar el reloj el segundo motor dejaría al
 // primero encolando en una cola que ya nadie vacía.
+// `skin` se pasa tal cual, incluido `undefined`: montar sin skin y montar con
+// "neon" tienen que producir exactamente lo mismo, y las pruebas de
+// tests/harness/skins.ts comparan justo esas dos corridas.
 export function montaMotor(
   factory: GameFactory,
   relojCompartido?: Reloj,
+  skin?: SkinId,
 ): MotorMontado {
   const reloj = relojCompartido ?? instalaReloj();
   const canvas = creaCanvas();
   const espias = creaEspias();
-  const handle = factory(canvas, espias.callbacks);
+  const handle = factory(canvas, espias.callbacks, skin);
   return { ...espias, handle, canvas, reloj };
 }
 

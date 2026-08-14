@@ -20,6 +20,7 @@
 // createSnakeGame: en Next un `let` de módulo sobrevive entre montajes y volver
 // a la pantalla arrastraría la partida anterior.
 
+import { paletaDe, type FichaDeSkins } from "./skins";
 import type { GameFactory, GameOverReason, GameOverSummary } from "./types";
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -52,20 +53,98 @@ const LARGO_INICIAL = 3; // segmentos al empezar, en el centro, mirando a la der
 const SPRITE_SRC = "/snake-fruits.png";
 const SPRITE_ESCALA = 1.3;
 
-// Son los mismos valores que los tokens de :root en app/globals.css. El canvas
-// no entiende de variables CSS: si el tema cambia, hay que tocar los dos sitios.
-const COLORS = {
+// ── Paleta ────────────────────────────────────────────────────────────────────
+
+// La paleta de referencia. Son los mismos valores que los tokens de :root en
+// app/globals.css (--green, --yellow, --magenta, --cyan), copiados aquí porque
+// el canvas no entiende de variables CSS: si el tema cambia, hay que tocar los
+// dos sitios.
+//
+// Cada color se guarda TAL COMO llega al contexto, con su alfa incluido si es
+// fijo: la rejilla y el resplandor de la serpiente son translúcidos siempre, así
+// que su alfa es parte del color y es lo que hay que medir.
+const PALETA_NEON = {
   fondo: "#000",
   rejilla: "rgba(0,255,136,0.06)", // --green muy diluido
   cuerpo: "#00ff88", // --green
   cabeza: "#7dffc4", // --green aclarado, para distinguir la cabeza
   ojo: "#001a10",
   brillo: "rgba(0,255,136,0.35)", // resplandor bajo la serpiente
-  // Fallback mientras el PNG no ha cargado, uno por rareza
+  // Los tres colores de rareza. Tiñen el resplandor del sprite y, mientras el
+  // PNG no ha cargado, pintan el rombo del fallback.
   frutaComun: "#f5ff00", // --yellow
   frutaRara: "#ff006e", // --magenta
   frutaExotica: "#00f5ff", // --cyan
 } as const;
+
+export type RolSerpentina = keyof typeof PALETA_NEON;
+export type PaletaSerpentina = Readonly<Record<RolSerpentina, string>>;
+
+export const SKINS_SERPENTINA: FichaDeSkins<RolSerpentina> = {
+  roles: {
+    fondo: { clase: "superficie" },
+    // La rejilla es "superficie" y no "decorado" a propósito: su alfa de 0.06
+    // sobre negro da 1.07:1, muy por debajo del 1.5:1 de un decorado. No es un
+    // descuido de neón sino lo que se busca — da escala a la grilla sin competir
+    // con la serpiente, y "superficie" (máximo 2:1) es justo la clase que exige
+    // que siga siendo fondo en las tres skins.
+    rejilla: { clase: "superficie" },
+    cuerpo: { clase: "jugable" },
+    cabeza: { clase: "jugable" },
+    // Los ojos se pintan encima de la cabeza, no del tablero: medirlos contra el
+    // fondo aprobaría un color que en pantalla no se ve.
+    ojo: { clase: "jugable", sobre: "cabeza" },
+    brillo: { clase: "decorado" },
+    frutaComun: { clase: "jugable" },
+    frutaRara: { clase: "jugable" },
+    frutaExotica: { clase: "jugable" },
+  },
+  // Lo que hay que poder distinguir es la serpiente de la comida, y las tres
+  // rarezas entre sí: la rareza decide puntos, crecimiento y frecuencia, así que
+  // confundir una exótica con una común es confundir 300 puntos con 50.
+  //
+  // La cabeza queda fuera del grupo a propósito. En neón es el mismo verde
+  // aclarado del cuerpo (1.09× de luminancia y 0.8° de tono), y esa relación
+  // está congelada; se distingue por posición y por los ojos, no por color, como
+  // en cualquier Snake. Meterla en el grupo habría obligado a cambiar neón.
+  grupos: [["cuerpo", "frutaComun", "frutaRara", "frutaExotica"]],
+  paletas: {
+    neon: PALETA_NEON,
+
+    // Monitor de fósforo ámbar: un solo tono y todo el trabajo hecho por la
+    // luminancia. La rampa va de la fruta común (la que sale el 65% de las
+    // veces, deliberadamente discreta) al blanco cálido de la exótica, pasando
+    // por la serpiente: cuanto más rara es la fruta, más quema el fósforo.
+    retro: {
+      fondo: "#000",
+      rejilla: "rgba(255,176,0,0.06)",
+      cuerpo: "#c07800",
+      cabeza: "#dc9800",
+      ojo: "#2b1500",
+      brillo: "rgba(255,176,0,0.35)",
+      frutaComun: "#8a6000",
+      frutaRara: "#ffc135",
+      frutaExotica: "#fff3d7",
+    },
+
+    // La pantalla de fósforo verde de la Game Boy y del Snake de Nokia, con su
+    // #9bbc0f para la cabeza. La rampa está invertida respecto al original —allí
+    // el verde era el FONDO y los píxeles se apagaban a #0f380f— porque el
+    // portal es siempre oscuro: aquí el verde de pantalla lo lleva la serpiente.
+    // Los ojos sí conservan el #0f380f, que es el tono más apagado de la DMG.
+    clasico: {
+      fondo: "#000",
+      rejilla: "rgba(155,188,15,0.06)",
+      cuerpo: "#728b0b",
+      cabeza: "#9bbc0f",
+      ojo: "#0f380f",
+      brillo: "rgba(155,188,15,0.35)",
+      frutaComun: "#5c6f09",
+      frutaRara: "#c0d567",
+      frutaExotica: "#f1f6df",
+    },
+  },
+};
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -452,13 +531,13 @@ function rectRedondeado(
   ctx.fill();
 }
 
-function drawFondo(ctx: CanvasRenderingContext2D) {
-  ctx.fillStyle = COLORS.fondo;
+function drawFondo(ctx: CanvasRenderingContext2D, paleta: PaletaSerpentina) {
+  ctx.fillStyle = paleta.fondo;
   ctx.fillRect(0, 0, W, H);
 
   // Rejilla muy tenue: da escala a la grilla sin competir con la serpiente. El
   // medio píxel es para que las líneas salgan nítidas y no difuminadas en dos.
-  ctx.strokeStyle = COLORS.rejilla;
+  ctx.strokeStyle = paleta.rejilla;
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let col = 1; col < COLS; col++) {
@@ -474,16 +553,17 @@ function drawFondo(ctx: CanvasRenderingContext2D) {
 
 function drawSerpiente(
   ctx: CanvasRenderingContext2D,
+  paleta: PaletaSerpentina,
   snake: readonly Celda[],
   dir: Vec,
 ) {
   ctx.save();
-  ctx.shadowColor = COLORS.brillo;
+  ctx.shadowColor = paleta.brillo;
   ctx.shadowBlur = 10;
 
   // De la cola hacia la cabeza, para que la cabeza quede por encima cuando la
   // serpiente se pliega sobre sí misma.
-  ctx.fillStyle = COLORS.cuerpo;
+  ctx.fillStyle = paleta.cuerpo;
   for (let i = snake.length - 1; i >= 1; i--) {
     const s = snake[i];
     rectRedondeado(
@@ -497,7 +577,7 @@ function drawSerpiente(
   }
 
   const cabeza = snake[0];
-  ctx.fillStyle = COLORS.cabeza;
+  ctx.fillStyle = paleta.cabeza;
   ctx.shadowBlur = 16;
   rectRedondeado(
     ctx,
@@ -518,7 +598,7 @@ function drawSerpiente(
   const SEPARACION = CELL * 0.2; // a cada lado del eje
   const OJO = Math.round(CELL * 0.18);
 
-  ctx.fillStyle = COLORS.ojo;
+  ctx.fillStyle = paleta.ojo;
   for (const lado of [1, -1]) {
     const ox = cx + dir.dc * AVANCE + perp.dc * SEPARACION * lado;
     const oy = cy + dir.dr * AVANCE + perp.dr * SEPARACION * lado;
@@ -540,15 +620,17 @@ function cargarSprite(alCargar: () => void): HTMLImageElement {
   return img;
 }
 
-function colorDeRareza(rareza: Rareza): string {
-  if (rareza === "exotica") return COLORS.frutaExotica;
-  if (rareza === "rara") return COLORS.frutaRara;
-  return COLORS.frutaComun;
+function colorDeRareza(paleta: PaletaSerpentina, rareza: Rareza): string {
+  if (rareza === "exotica") return paleta.frutaExotica;
+  if (rareza === "rara") return paleta.frutaRara;
+  return paleta.frutaComun;
 }
 
-// `sprite` es null mientras el PNG no ha cargado.
+// `sprite` es null mientras el PNG no ha cargado, y siempre fuera de neón: la
+// hoja de frutas trae el color horneado y ningún skin puede teñirla.
 function drawFruta(
   ctx: CanvasRenderingContext2D,
+  paleta: PaletaSerpentina,
   fruta: FrutaEnJuego,
   sprite: HTMLImageElement | null,
 ) {
@@ -559,7 +641,7 @@ function drawFruta(
     // Fallback: un rombo del color de la rareza. No pretende parecerse a la
     // fruta, solo dejar claro dónde está y cuánto vale hasta que cargue.
     const r = CELL * 0.32;
-    const color = colorDeRareza(fruta.fruta.rareza);
+    const color = colorDeRareza(paleta, fruta.fruta.rareza);
     ctx.save();
     ctx.fillStyle = color;
     ctx.shadowColor = color;
@@ -585,7 +667,7 @@ function drawFruta(
   ctx.save();
   // El resplandor hace que la fruta pertenezca al mismo mundo que la serpiente
   // y no parezca un icono pegado encima.
-  ctx.shadowColor = colorDeRareza(fruta.fruta.rareza);
+  ctx.shadowColor = colorDeRareza(paleta, fruta.fruta.rareza);
   ctx.shadowBlur = 10;
   // Se deja el suavizado activo a propósito: el recorte mide 160 px de alto y
   // se dibuja a 32, y con nearest-neighbor una reducción de 5× se come cuatro
@@ -614,12 +696,24 @@ function intervaloPara(nivel: number): number {
   return Math.max(STEP_MIN, STEP_BASE - (nivel - 1) * STEP_DEC);
 }
 
-export const createSnakeGame: GameFactory = (canvas, callbacks) => {
+// `skin` lleva valor por defecto y no interrogante: montar el motor sin elegir
+// nada tiene que pintar exactamente lo de siempre, y Function.length no cuenta
+// los parámetros con valor por defecto, así que la aridad sigue siendo 2.
+export const createSnakeGame: GameFactory = (
+  canvas,
+  callbacks,
+  skin = "neon",
+) => {
   const context2d = canvas.getContext("2d");
   if (!context2d) throw new Error("SERPENTINA necesita un canvas 2D");
   // Con tipo explícito: el estrechamiento del guard no llega hasta draw(), que
   // es un closure.
   const ctx: CanvasRenderingContext2D = context2d;
+
+  // Se resuelve una vez al montar. La paleta no es estado del módulo: vive en el
+  // closure, como todo lo demás, así que dos motores con skins distintos no se
+  // pisan.
+  const paleta = paletaDe(SKINS_SERPENTINA, skin);
 
   const input = new Input();
 
@@ -644,9 +738,14 @@ export const createSnakeGame: GameFactory = (canvas, callbacks) => {
 
   // La imagen tarda en llegar y la factory no puede esperarla: hasta que cargue,
   // drawFruta pinta el fallback.
-  const sprite = cargarSprite(() => {
-    spriteListo = true;
-  });
+  //
+  // Solo se pide en neón. La hoja de frutas trae el color horneado en los
+  // píxeles y ningún skin puede teñirla, así que retro y clásico se quedan en el
+  // camino vectorial —el mismo rombo que ya existe y ya está probado—, que es lo
+  // único que hace alcanzables sus tres colores de rareza. Ni assets nuevos ni
+  // una petición de red que no se va a usar.
+  const sprite =
+    skin === "neon" ? cargarSprite(() => (spriteListo = true)) : null;
 
   // Los callbacks provocan renders de React: solo se emite cuando el valor
   // cambia de verdad.
@@ -772,9 +871,9 @@ export const createSnakeGame: GameFactory = (canvas, callbacks) => {
   }
 
   function draw() {
-    drawFondo(ctx);
-    if (fruta) drawFruta(ctx, fruta, spriteListo ? sprite : null);
-    if (snake.length > 0) drawSerpiente(ctx, snake, dir);
+    drawFondo(ctx, paleta);
+    if (fruta) drawFruta(ctx, paleta, fruta, spriteListo ? sprite : null);
+    if (snake.length > 0) drawSerpiente(ctx, paleta, snake, dir);
   }
 
   function loop(ts: number) {
@@ -833,11 +932,12 @@ export const createSnakeGame: GameFactory = (canvas, callbacks) => {
 
     // Desmontar no es terminar una partida: no emite onGameOver. Soltar el
     // onload es de lo mismo que quitar los listeners: si la imagen llega tarde,
-    // escribiría en el closure de un motor que ya nadie usa.
+    // escribiría en el closure de un motor que ya nadie usa. Fuera de neón no
+    // hay imagen que soltar: ese camino dibuja las frutas con primitivas.
     destroy() {
       stopLoop();
       input.detach();
-      sprite.onload = null;
+      if (sprite) sprite.onload = null;
     },
   };
 };

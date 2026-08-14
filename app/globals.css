@@ -1167,6 +1167,29 @@ a {
   min-width: 74px;
   color: var(--yellow);
 }
+/* Selector de aspecto del overlay de arranque. Vive solo ahí: con la partida
+   ya empezada, cambiar de skin remontaría el motor y la reiniciaría. */
+.game-skins {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.game-skins-label {
+  font-size: 10px;
+  color: var(--ink-dim);
+  letter-spacing: 0.22em;
+  margin-bottom: 10px;
+}
+.game-skins-opciones {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.game-skins-opciones .btn {
+  font-size: 9px;
+  padding: 8px 12px;
+}
 /* Los juegos con motor real se juegan con teclado. En pantallas pequeñas se
    avisa en vez de dejar al jugador delante de una partida que no responde. */
 .game-keyboard-note {

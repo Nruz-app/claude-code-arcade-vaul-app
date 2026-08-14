@@ -8,9 +8,16 @@
 //    el bucle en el propio import, dentro del callback de loadSpritesheet(); en
 //    Next eso sobrevive entre montajes y volver a la pantalla arrastraría la
 //    muralla de la partida anterior.
-//  - Sin spritesheet ni sonidos: los bloques, la paleta y la pelota se dibujan
-//    con formas y la paleta neón del tema. Cargar una imagen es asíncrono y
-//    GameFactory es síncrona, así que habría frames sin sprites.
+//  - Sin spritesheet: los bloques, la barra y la pelota se dibujan con formas y
+//    los colores de una de las tres paletas de SKINS_BLOQUE_BUSTER. Cargar una
+//    imagen es asíncrono y GameFactory es síncrona, así que habría frames sin
+//    sprites; y un PNG lleva el color horneado, que es justo lo que un skin no
+//    puede cambiar.
+//  - Con sonido, pero no el del original (SPEC 12). Los dos efectos son sus dos
+//    .mp3 recortados, normalizados y pasados a mono, servidos desde public/; el
+//    original los carga con ruta relativa desde assets/, que en Next no
+//    resuelve. Qué suena y cuándo está en la tabla de la SPEC 12: un evento, un
+//    sonido, y como mucho un disparo de cada efecto por frame.
 //  - Sin HUD ni overlays dentro del canvas: el original pinta puntuación, nivel
 //    y vidas arriba, más un overlay de pausa con botones clicables para saltar
 //    de nivel. Aquí todo eso sale por los callbacks y lo pinta la plataforma;
@@ -18,6 +25,8 @@
 //  - Los niveles ya no llevan su velocidad: los cinco patrones se reciclan
 //    indefinidamente y la velocidad depende del número de nivel (levelSpeed).
 
+import { crearSfx } from "./audio";
+import { paletaDe, type FichaDeSkins } from "./skins";
 import type { GameFactory, GameOverReason, GameOverSummary } from "./types";
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -80,13 +89,47 @@ const LIFE_BONUS = 500; // × vidas restantes, al limpiar la muralla
 const PARTICLES_PER_BLOCK = 8;
 const PARTICLE_MS = 300; // vida de una partícula
 
+// ── Audio ─────────────────────────────────────────────────────────────────────
+
+// Los efectos viven en public/, como los de RANARIA: las rutas relativas al
+// módulo no las resuelve Next. Son los dos .mp3 de la referencia recortados y
+// normalizados **al mismo pico** (−1 dBFS), así que la mezcla entre ellos la
+// deciden los dos números de abajo y nada más; la receta está en la SPEC 12.
+const SFX_REBOTE_SRC = "/bloque-rebote.mp3";
+const SFX_ROMPER_SRC = "/bloque-romper.mp3";
+
+// El rebote suena varias veces por segundo —muros y paleta, y más según sube la
+// velocidad del nivel— y el ladrillo una vez por bloque. Con los dos al mismo
+// volumen el rebote se convierte en un zumbido de fondo y romper la muralla deja
+// de premiar.
+//
+// La separación es deliberada y son 7,7 dB, no los 6 que sugiere la razón 0,3 :
+// 0,6. Los dos archivos están al mismo **pico**, que es lo que hace comparable
+// la mezcla, pero el ladrillo es 1,7 dB más denso en RMS —dura más y va más
+// lleno—, y esos 1,7 dB se suman a los 6 de las constantes. Si mañana se
+// reemplaza una de las dos muestras, mirar solo estos números engaña: lo que
+// hay que comparar es RMS + volumen.
+const SFX_REBOTE_VOL = 0.3;
+const SFX_ROMPER_VOL = 0.6;
+
 // ── Colores ───────────────────────────────────────────────────────────────────
 
-// Los siete nombres de color de levels.js mapeados a la paleta neón. Los cuatro
-// que llevan comentario de token son los de :root en app/globals.css, copiados
-// aquí porque el canvas no entiende de variables CSS; si el tema cambia, hay que
-// tocar los dos sitios. Son los mismos literales que usa tetris.ts.
-const BLOCK_COLORS = {
+// La paleta de referencia, con los literales que el motor tenía escritos antes
+// de que existieran los skins, movidos aquí carácter a carácter. Los que llevan
+// comentario de token son los de :root en app/globals.css, copiados porque el
+// canvas no entiende de variables CSS; si el tema cambia, hay que tocar los dos
+// sitios.
+//
+// Los siete primeros roles son las vetas de la muralla y conservan los nombres
+// de color de levels.js: fuera de neón el nombre ya no describe el tono, sino
+// **qué veta** de la muralla es. Es lo que permite que los cinco patrones de
+// buildLevels() no cambien ni una línea al reskinear.
+//
+// `barra` es la paleta del juego. Se llama así y no `paleta` para no chocar con
+// la paleta de colores, que es lo que baja por argumento a cada función de
+// dibujo.
+const PALETA_NEON = {
+  fondo: "#000",
   red: "#ff2d55", // rojo neón
   yellow: "#f5ff00", // --yellow
   cyan: "#00f5ff", // --cyan
@@ -94,15 +137,128 @@ const BLOCK_COLORS = {
   hotpink: "#ff5cae", // rosa claro
   green: "#00ff88", // --green
   gray: "#9aa0b5", // gris metálico
+  barra: "#00f5ff", // --cyan, el acento de bloque-buster en GAMES
+  filoBarra: "rgba(255,255,255,0.35)", // filo claro del centro de la barra
+  pelota: "#e6e9ff", // --ink
+  haloPelota: "#00f5ff", // el shadowColor de la pelota, antes atado al de la barra
+  relieve: "rgba(255,255,255,0.14)", // banda de relieve de cada bloque
 } as const;
 
-const PADDLE_COLOR = "#00f5ff"; // --cyan, el acento de bloque-buster en GAMES
-const BALL_COLOR = "#e6e9ff"; // --ink
-const BG_COLOR = "#000";
+export type RolBloqueBuster = keyof typeof PALETA_NEON;
+export type PaletaBloqueBuster = Readonly<Record<RolBloqueBuster, string>>;
+
+// Las siete vetas de la muralla, en el orden en que las nombra levels.js. El
+// `satisfies` es el que impide que una veta deje de tener rol: si alguien
+// renombra una clave de PALETA_NEON, esto deja de compilar en vez de dibujar un
+// `undefined`.
+//
+// Solo se usa como tipo, y eso es exactamente lo que se quiere: el valor existe
+// para que el `satisfies` se evalúe, no para leerlo en tiempo de ejecución.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const VETAS = [
+  "red",
+  "yellow",
+  "cyan",
+  "magenta",
+  "hotpink",
+  "green",
+  "gray",
+] as const satisfies readonly RolBloqueBuster[];
+
+export const SKINS_BLOQUE_BUSTER: FichaDeSkins<RolBloqueBuster> = {
+  roles: {
+    fondo: { clase: "superficie" },
+    red: { clase: "jugable" },
+    yellow: { clase: "jugable" },
+    cyan: { clase: "jugable" },
+    magenta: { clase: "jugable" },
+    hotpink: { clase: "jugable" },
+    green: { clase: "jugable" },
+    gray: { clase: "jugable" },
+    barra: { clase: "jugable" },
+    // Los dos overlays translúcidos son "superficie" —un MÁXIMO— y no
+    // "decorado": no son elementos que haya que ver, son modulaciones de lo que
+    // tienen debajo, y lo que hay que garantizar es justo lo contrario, que no
+    // lo tapen. Se miden sobre lo que cubren de verdad: el filo sobre la barra y
+    // el relieve sobre `magenta`, que es la veta más oscura de las tres paletas
+    // y por tanto el caso más exigente.
+    filoBarra: { clase: "superficie", sobre: "barra" },
+    pelota: { clase: "jugable" },
+    haloPelota: { clase: "decorado" },
+    relieve: { clase: "superficie", sobre: "magenta" },
+  },
+  // El grupo de la muralla se queda en cinco vetas, no en siete, y la razón es
+  // neón: `red` (#ff2d55) y `hotpink` (#ff5cae) son dos variantes del mismo
+  // rojo-rosa que no llegan al salto de tono ni entre sí ni contra `magenta`
+  // (14°, 19° y 21° de diferencia, con menos de 1,3× de luminancia). Neón está
+  // congelado, así que la alternativa era bajar el umbral, y eso no se hace.
+  //
+  // Se puede reducir sin perder nada porque el color de una veta **no lleva
+  // información de juego**: los sesenta bloques caen de un golpe y valen los
+  // mismos puntos, y lo que el jugador tiene que leer es dónde queda hueco, que
+  // lo dice la rejilla. Retro y clásico separan igualmente las siete.
+  //
+  // La barra y la pelota sí van juntas: la pelota sale apoyada sobre la barra y
+  // vuelve a ella en cada rebote, y ahí confundir una con otra sí cuesta vidas.
+  grupos: [
+    ["yellow", "cyan", "magenta", "green", "gray"],
+    ["barra", "pelota"],
+  ],
+  paletas: {
+    neon: PALETA_NEON,
+
+    // Monitor de fósforo ámbar. Un solo tono (255,176,0) y siete pasos de
+    // luminancia separados 1,33× cada uno: la muralla se lee entera por brillo,
+    // que es exactamente lo que hacía un monitor monocromo. El orden de las
+    // vetas es el mismo que en neón —yellow arriba, magenta abajo—, así que el
+    // peso visual de la muralla no se invierte al cambiar de skin.
+    retro: {
+      fondo: "#000",
+      red: "#936600",
+      yellow: "#ffecc0",
+      cyan: "#eea500",
+      magenta: "#7a5500",
+      hotpink: "#b07900",
+      green: "#ffc545",
+      gray: "#cd8e00",
+      barra: "#ffb000",
+      filoBarra: "rgba(255,240,200,0.35)",
+      pelota: "#fff6e0",
+      haloPelota: "#ffb000",
+      relieve: "rgba(255,236,190,0.18)",
+    },
+
+    // La muralla del Arkanoid de Taito (1986): plata, oro, rojo, azul, naranja,
+    // cian y verde sobre negro, con el Vaus rojo y la pelota blanca. Dos
+    // desviaciones del original, las dos por contraste y anotadas en la memoria
+    // de skin-designer: el azul sube de #0000ff (2,44:1, ilegible sobre negro) a
+    // #0058f8 (3,75:1), y la plata baja a gris acero #8a8a8a para separarse en
+    // luminancia de las vetas vivas — en el original esa separación la hacía el
+    // degradado del sprite, que aquí no existe.
+    clasico: {
+      fondo: "#000",
+      red: "#d82800",
+      yellow: "#ffd23a",
+      cyan: "#3cd8f0",
+      magenta: "#0058f8",
+      hotpink: "#ff8c11",
+      green: "#22c04a",
+      gray: "#8a8a8a",
+      barra: "#d82800",
+      filoBarra: "rgba(255,255,255,0.35)",
+      pelota: "#ffffff",
+      haloPelota: "#ffffff",
+      relieve: "rgba(255,255,255,0.14)",
+    },
+  },
+};
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
-export type BlockColor = keyof typeof BLOCK_COLORS;
+// El nombre de veta que guarda un bloque. Sigue siendo la indirección
+// nombre → color de siempre, solo que ahora el nombre es un rol de la paleta y
+// el color lo pone el skin en el punto de dibujo.
+export type BlockColor = (typeof VETAS)[number];
 
 // Un bloque tal y como lo describe un patrón: en coordenadas de rejilla, sin
 // píxeles. La conversión a canvas ocurre al cargar el nivel (paso 6).
@@ -350,6 +506,16 @@ export function bounceOffPaddle(ball: Ball, paddle: Rect, speed: number): void {
 export interface StepOutcome {
   broken: Block[]; // bloques rotos, como mucho uno por sub-paso
   lost: boolean; // la pelota se ha ido por abajo
+  // Ha rebotado en un muro o en la paleta durante el frame. Lo usa el motor
+  // para disparar el efecto de rebote; stepBall no sabe nada de audio.
+  //
+  // Booleano y no contador porque el efecto tiene una sola voz: dos rebotes en
+  // el mismo frame producirían un único sonido de todas formas.
+  //
+  // Un impacto contra un bloque **no** lo marca, aunque físicamente sea un
+  // rebote: ese evento ya suena con su propio efecto, y disparar los dos a la
+  // vez suma dos ataques en el mismo instante y da barro. Un evento, un sonido.
+  bounced: boolean;
 }
 
 // Mueve la pelota el desplazamiento de un frame, partido en sub-pasos de como
@@ -370,7 +536,7 @@ export function stepBall(
   blocks: Block[],
   speed: number,
 ): StepOutcome {
-  const outcome: StepOutcome = { broken: [], lost: false };
+  const outcome: StepOutcome = { broken: [], lost: false, bounced: false };
 
   const distance = Math.hypot(ball.vx * dt, ball.vy * dt);
   const steps = Math.max(1, Math.ceil(distance / SUBSTEP_MAX));
@@ -384,14 +550,17 @@ export function stepBall(
     if (ball.x <= 0) {
       ball.x = 0;
       ball.vx = Math.abs(ball.vx);
+      outcome.bounced = true;
     }
     if (ball.x + ball.size >= W) {
       ball.x = W - ball.size;
       ball.vx = -Math.abs(ball.vx);
+      outcome.bounced = true;
     }
     if (ball.y <= 0) {
       ball.y = 0;
       ball.vy = Math.abs(ball.vy);
+      outcome.bounced = true;
     }
 
     // Paleta. Solo cuenta si la pelota baja y la toca por arriba: sin la
@@ -403,6 +572,7 @@ export function stepBall(
       ball.y + ball.size <= paddle.y + paddle.h
     ) {
       bounceOffPaddle(ball, paddle, speed);
+      outcome.bounced = true;
     }
 
     // Un solo bloque por sub-paso, igual que el `break` del original: con
@@ -522,16 +692,20 @@ export class Input {
 // Tampoco hay spritesheet: las formas se dibujan con relleno plano, una banda
 // clara arriba que simula el relieve del sprite original, y un halo corto con
 // shadowBlur para que encajen con el neón del resto del portal.
+//
+// Las cinco funciones reciben la paleta por argumento y no la capturan del
+// módulo: es la invariante nº 1 del contrato, y es lo que permite que dos
+// motores montados con skins distintos no se pisen.
 
 const GLOW_BLOCK = 8;
 const GLOW_PADDLE = 14;
 const GLOW_BALL = 12;
 
-const HIGHLIGHT = "rgba(255,255,255,0.14)"; // banda de relieve
-const PADDLE_CORE = "rgba(255,255,255,0.35)"; // filo claro de la paleta
-
-export function drawBackground(ctx: CanvasRenderingContext2D): void {
-  ctx.fillStyle = BG_COLOR;
+export function drawBackground(
+  ctx: CanvasRenderingContext2D,
+  paleta: PaletaBloqueBuster,
+): void {
+  ctx.fillStyle = paleta.fondo;
   ctx.fillRect(0, 0, W, H);
 }
 
@@ -540,15 +714,18 @@ export function drawBackground(ctx: CanvasRenderingContext2D): void {
 export function drawBlocks(
   ctx: CanvasRenderingContext2D,
   blocks: readonly Block[],
+  paleta: PaletaBloqueBuster,
 ): void {
   ctx.shadowBlur = GLOW_BLOCK;
   for (const block of blocks) {
     if (!block.alive) continue;
-    const color = BLOCK_COLORS[block.color];
+    // Aquí es donde el nombre de veta que guarda el bloque se convierte en
+    // color: la data de niveles no sabe de skins.
+    const color = paleta[block.color];
     ctx.shadowColor = color;
     ctx.fillStyle = color;
     ctx.fillRect(block.x + 1, block.y + 1, block.w - 2, block.h - 2);
-    ctx.fillStyle = HIGHLIGHT;
+    ctx.fillStyle = paleta.relieve;
     ctx.fillRect(block.x + 1, block.y + 1, block.w - 2, 4);
   }
   ctx.shadowBlur = 0;
@@ -557,25 +734,33 @@ export function drawBlocks(
 export function drawPaddle(
   ctx: CanvasRenderingContext2D,
   paddle: Paddle,
+  paleta: PaletaBloqueBuster,
 ): void {
   ctx.shadowBlur = GLOW_PADDLE;
-  ctx.shadowColor = PADDLE_COLOR;
-  ctx.fillStyle = PADDLE_COLOR;
+  ctx.shadowColor = paleta.barra;
+  ctx.fillStyle = paleta.barra;
   ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
   ctx.shadowBlur = 0;
   // Filo claro en el centro, para que se lea el punto que devuelve la pelota
   // en vertical: el ángulo de salida depende de dónde golpee (bounceOffPaddle).
-  ctx.fillStyle = PADDLE_CORE;
+  ctx.fillStyle = paleta.filoBarra;
   ctx.fillRect(paddle.x + paddle.w / 2 - 6, paddle.y + 3, 12, paddle.h - 6);
 }
 
 // Redonda, aunque las colisiones la traten como un cuadrado: con 14 px de lado
 // la diferencia no se percibe jugando, y un cuadrado desentona junto al resto.
-export function drawBall(ctx: CanvasRenderingContext2D, ball: Ball): void {
+export function drawBall(
+  ctx: CanvasRenderingContext2D,
+  ball: Ball,
+  paleta: PaletaBloqueBuster,
+): void {
   const radius = ball.size / 2;
   ctx.shadowBlur = GLOW_BALL;
-  ctx.shadowColor = PADDLE_COLOR;
-  ctx.fillStyle = BALL_COLOR;
+  // El halo tiene rol propio aunque en neón valga lo mismo que la barra: sin
+  // separarlos, un skin no podría darle a la pelota un resplandor que no fuese
+  // el color de la barra.
+  ctx.shadowColor = paleta.haloPelota;
+  ctx.fillStyle = paleta.pelota;
   ctx.beginPath();
   ctx.arc(ball.x + radius, ball.y + radius, radius, 0, Math.PI * 2);
   ctx.fill();
@@ -587,13 +772,17 @@ export function drawBall(ctx: CanvasRenderingContext2D, ball: Ball): void {
 export function drawParticles(
   ctx: CanvasRenderingContext2D,
   particles: readonly Particle[],
+  paleta: PaletaBloqueBuster,
 ): void {
   for (const particle of particles) {
     const life = 1 - particle.elapsed / PARTICLE_MS;
     if (life <= 0) continue;
     const size = 2 + 4 * life;
+    // El desvanecido va por globalAlpha y no por conAlfa(): así era antes de los
+    // skins y cambiarlo alteraría la secuencia de colores que llega al canvas,
+    // que es justo lo que verifica la cero-regresión de neón.
     ctx.globalAlpha = life;
-    ctx.fillStyle = BLOCK_COLORS[particle.color];
+    ctx.fillStyle = paleta[particle.color];
     ctx.fillRect(particle.x - size / 2, particle.y - size / 2, size, size);
   }
   ctx.globalAlpha = 1;
@@ -601,14 +790,30 @@ export function drawParticles(
 
 // ── Motor ─────────────────────────────────────────────────────────────────────
 
-export const createArkanoidGame: GameFactory = (canvas, callbacks) => {
+// `skin` lleva valor por defecto y no interrogante: con el valor por defecto
+// Function.length sigue valiendo 2 —que es lo que afirma registry.test.ts— y
+// montar sin elegir nada pinta exactamente lo mismo que montar con "neon".
+export const createArkanoidGame: GameFactory = (
+  canvas,
+  callbacks,
+  skin = "neon",
+) => {
   const context2d = canvas.getContext("2d");
   if (!context2d) throw new Error("BLOQUE BUSTER necesita un canvas 2D");
   // Con tipo explícito: el estrechamiento del guard no llega hasta draw(), que
   // es un closure.
   const ctx: CanvasRenderingContext2D = context2d;
 
+  // Se resuelve una vez al montar y vive en el closure, como el resto del
+  // estado: dos motores con skins distintos no se pisan.
+  const paleta = paletaDe(SKINS_BLOQUE_BUSTER, skin);
+
   const input = new Input(canvas);
+  // Creados aquí y no en start(): la factory se llama una vez por montaje, así
+  // que "JUGAR DE NUEVO" reusa estos dos elementos en vez de fabricar otros y
+  // el primer golpe de cada partida no llega tarde por la descarga.
+  const sfxRebote = crearSfx(SFX_REBOTE_SRC, SFX_REBOTE_VOL);
+  const sfxRomper = crearSfx(SFX_ROMPER_SRC, SFX_ROMPER_VOL);
   // Los patrones son inmutables y no dependen de la partida: se construyen una
   // vez por motor, no en cada nivel.
   const levels = buildLevels();
@@ -783,6 +988,18 @@ export const createArkanoidGame: GameFactory = (canvas, callbacks) => {
       spawnParticles(block);
     }
 
+    // Un disparo de cada efecto por frame como mucho, aunque el frame traiga
+    // varios rebotes o varios bloques rotos. Con una sola voz el resultado
+    // audible es el mismo que llamar a play() dentro del bucle de arriba, pero
+    // así el elemento no se reinicia N veces en el mismo tick y "cuántas veces
+    // sonó" sigue significando "cuántos golpes se oyeron".
+    //
+    // Los dos pueden sonar a la vez —rebotar en un muro y romper un bloque en
+    // sub-pasos distintos del mismo frame— y está bien: son dos elementos de
+    // audio independientes.
+    if (outcome.bounced) sfxRebote.play();
+    if (outcome.broken.length > 0) sfxRomper.play();
+
     for (const particle of particles) {
       particle.x += particle.vx * dt;
       particle.y += particle.vy * dt;
@@ -801,11 +1018,11 @@ export const createArkanoidGame: GameFactory = (canvas, callbacks) => {
   }
 
   function draw() {
-    drawBackground(ctx);
-    drawBlocks(ctx, blocks);
-    drawParticles(ctx, particles);
-    drawPaddle(ctx, paddle);
-    drawBall(ctx, ball);
+    drawBackground(ctx, paleta);
+    drawBlocks(ctx, blocks, paleta);
+    drawParticles(ctx, particles, paleta);
+    drawPaddle(ctx, paddle, paleta);
+    drawBall(ctx, ball, paleta);
   }
 
   function loop(ts: number) {
@@ -844,6 +1061,10 @@ export const createArkanoidGame: GameFactory = (canvas, callbacks) => {
       if (state !== "playing") return;
       state = "paused";
       input.clear();
+      // Un rebote sonando bajo el overlay de PAUSA delata que el motor sigue
+      // teniendo algo en marcha, justo lo contrario de lo que la pausa promete.
+      sfxRebote.silenciar();
+      sfxRomper.silenciar();
       stopLoop();
       draw(); // deja el frame congelado bajo el overlay de la plataforma
     },
@@ -863,9 +1084,15 @@ export const createArkanoidGame: GameFactory = (canvas, callbacks) => {
     },
 
     // Desmontar no es terminar una partida: no emite onGameOver.
+    //
+    // end() en cambio no silencia nada, a propósito: la cola del último golpe
+    // termina de sonar sobre el modal de FIN DEL JUEGO, que es lo que hace que
+    // el final se lea como consecuencia y no como un corte seco.
     destroy() {
       stopLoop();
       input.detach();
+      sfxRebote.destroy();
+      sfxRomper.destroy();
     },
   };
 };

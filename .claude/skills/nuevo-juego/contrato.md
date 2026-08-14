@@ -177,25 +177,43 @@ Si emitiera, navegar fuera registraría una partida fantasma.
 `start()` debe ser re-entrante (llamar `stopLoop()` antes de `initGame()`): es lo que usa
 el botón "JUGAR DE NUEVO".
 
-### 10. Colores del tema como literales
+### 10. Una paleta por skin, plana y sin literales sueltos
 
-El canvas no entiende variables CSS. Copia los tokens de `:root` con un comentario que lo
-diga, como hace `asteroids.ts`:
+El canvas no entiende variables CSS. Todos los colores del motor viven en **una sola** ficha
+`FichaDeSkins` (`app/lib/games/skins.ts`), con tres paletas —`neon`, `retro` y `clasico`—
+sobre el mismo juego de roles. El modelo es `asteroids.ts`:
 
 ```ts
-// Son los mismos valores que los tokens de :root en app/globals.css. Si el tema
-// cambia, hay que tocar los dos sitios.
-const COLORS = {
-  bg: "#000",
-  ship: "#00f5ff", // --cyan
-  thruster: "rgba(245,255,0,0.85)", // --yellow
-  bullet: "#e6e9ff", // --ink
-  powerUp: "#ff006e", // --magenta
+// La paleta de referencia. Son los mismos valores que los tokens de :root en
+// app/globals.css: si el tema cambia, hay que tocar los dos sitios.
+const PALETA_NEON = {
+  fondo: "#000",
+  nave: "#00f5ff", // --cyan
+  propulsor: "rgba(245,255,0,0.85)", // --yellow
+  bala: "#e6e9ff", // --ink
+  mejora: "#ff006e", // --magenta
 } as const;
+
+export type RolRocas = keyof typeof PALETA_NEON;
+export const SKINS_ROCAS: FichaDeSkins<RolRocas> = { roles, grupos, paletas };
 ```
 
-Un juego en blanco puro sobre negro dentro del marco CRT de neón se ve como una ventana
-ajena pegada encima.
+Las cinco reglas:
+
+1. **`neon` es la paleta de referencia** y copia los tokens de `:root`. Un juego en blanco
+   puro sobre negro dentro del marco CRT de neón se ve como una ventana ajena pegada encima.
+2. **Cero literales en el dibujo.** Ningún `ctx.fillStyle = "#…"` fuera de la ficha, y
+   ninguna tabla de datos con colores escritos a mano: si un dato necesita color, guarda el
+   **nombre del rol** y resuélvelo al dibujar, como hace `arkanoid.ts` con `BlockColor`.
+3. **La paleta es un mapa plano rol → cadena CSS**, sin funciones. El alfa fijo va dentro del
+   valor, porque es lo que hay que medir; el variable lo pone `conAlfa(paleta.rol, alfa)`.
+4. **Cada rol declara su clase de contraste** (`texto` / `jugable` / `decorado` /
+   `superficie`) y sobre qué superficie se pinta. Es lo que mide `tests/harness/skins.ts`.
+5. **La paleta no es estado del módulo.** Entra por el tercer parámetro de la factory
+   —declarado `skin = "neon"`, **nunca `skin?`**— y baja por argumento a cada función de
+   dibujo.
+
+Reskinear un motor es trabajo del subagente `skin-designer`.
 
 ---
 
@@ -206,7 +224,7 @@ El orden de secciones de `asteroids.ts`, con banners `// ── Nombre ───
 ```
 1. Cabecera doc     — de dónde viene y qué se cambió a propósito
 2. import type      — solo tipos: cero dependencias en runtime
-3. Constantes       — W, H, COLORS, tuning
+3. Constantes       — W, H, PALETA_NEON + la ficha de skins, tuning
 4. Utilidades       — helpers puros (wrap, dist, rand)
 5. Teclado          — class Input
 6. Entidades        — una clase por entidad
@@ -236,9 +254,20 @@ callbacks se emitan solo al cambiar (nº 8), que el tiempo en pausa no cuente (n
 el `dt` esté capado (nº 7), que `end()` tenga guardia y `destroy()` no emita (nº 9), y que
 `destroy()` suelte los listeners de `window` (nº 5).
 
+La nº 10 tiene además su propia suite, que se hereda igual de con una línea y comprueba que
+las tres paletas cubran los mismos roles, que cada rol llegue a su umbral de contraste sobre
+la superficie en la que se pinta, que los colores de un grupo se distingan entre sí, que
+**ningún color fuera de la paleta llegue al canvas**, y que montar el motor sin skin pinte
+exactamente lo mismo que montarlo con `"neon"`:
+
+```ts
+import { verificaSkins } from "../harness/skins";
+verificaSkins("SERPENTINA", createSnakeGame, SKINS_SERPENTINA);
+```
+
 Lo que **no** puede cubrir, y sigue siendo cosa tuya: la resolución 800×600 (nº 3, es una
-constante por módulo — asértala en el archivo del juego), que no dibujes HUD dentro del
-canvas (nº 4) y que los colores salgan del tema (nº 10).
+constante por módulo — asértala en el archivo del juego) y que no dibujes HUD dentro del
+canvas (nº 4).
 
 ## Qué NO tocar al portar un juego
 

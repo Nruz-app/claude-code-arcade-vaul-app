@@ -6,11 +6,12 @@
 // Es Partial a propósito: al indexar con un id cualquiera el tipo resultante es
 // GameFactory | undefined, así que el despachador está obligado a comprobarlo.
 
-import { createArkanoidGame } from "./arkanoid";
-import { createAsteroidsGame } from "./asteroids";
-import { createFroggerGame } from "./frogger";
-import { createSnakeGame } from "./snake";
-import { createTetrisGame } from "./tetris";
+import { SKINS_BLOQUE_BUSTER, createArkanoidGame } from "./arkanoid";
+import { SKINS_ROCAS, createAsteroidsGame } from "./asteroids";
+import { SKINS_RANARIA, createFroggerGame } from "./frogger";
+import type { FichaDeSkins } from "./skins";
+import { SKINS_SERPENTINA, createSnakeGame } from "./snake";
+import { SKINS_CAIDA, createTetrisGame } from "./tetris";
 import type { GameFactory } from "./types";
 
 export const GAME_ENGINES: Partial<Record<string, GameFactory>> = {
@@ -19,6 +20,22 @@ export const GAME_ENGINES: Partial<Record<string, GameFactory>> = {
   "bloque-buster": createArkanoidGame,
   serpentina: createSnakeGame,
   ranaria: createFroggerGame,
+};
+
+// Qué motores tienen paletas de skin declaradas. Sigue el mismo patrón que
+// GAME_CONTROLS —un mapa por id de juego para lo que no es comportamiento— y
+// cumple dos papeles: el reproductor decide con él si enseñar el selector de
+// skin, y tests/games/registry.test.ts lo cruza con GAME_ENGINES para que
+// registrar un motor sin skins no pase inadvertido.
+//
+// En tiempo de ejecución el motor NO lee de aquí: resuelve su propia paleta a
+// partir del skin que recibe. Este mapa es para la plataforma.
+export const GAME_PALETAS: Partial<Record<string, FichaDeSkins<string>>> = {
+  rocas: SKINS_ROCAS,
+  "bloque-buster": SKINS_BLOQUE_BUSTER,
+  serpentina: SKINS_SERPENTINA,
+  caida: SKINS_CAIDA,
+  ranaria: SKINS_RANARIA,
 };
 
 // Teclas que anuncia el overlay de arranque del reproductor. Viven aquí y no

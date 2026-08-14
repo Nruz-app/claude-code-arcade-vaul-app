@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   H,
+  SKINS_ROCAS,
   W,
   createAsteroidsGame,
   dist,
@@ -15,8 +16,10 @@ import {
 
 import { verificaContrato } from "../harness/contrato";
 import { montaMotor } from "../harness/motor";
+import { verificaSkins } from "../harness/skins";
 
 verificaContrato("ROCAS", createAsteroidsGame);
+verificaSkins("ROCAS", createAsteroidsGame, SKINS_ROCAS);
 
 describe("ROCAS: resolución", () => {
   it("usa el canvas de 800×600 que fija el reproductor", () => {

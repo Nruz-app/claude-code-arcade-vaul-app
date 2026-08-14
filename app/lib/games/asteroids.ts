@@ -10,6 +10,7 @@
 //    así el motor no depende de que exista un canvas al importarlo.
 //  - Sin HUD ni overlay dentro del canvas: de eso se encarga la plataforma.
 
+import { conAlfa, paletaDe, type FichaDeSkins } from "./skins";
 import type { GameFactory, GameOverReason, GameOverSummary } from "./types";
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -24,18 +25,76 @@ const RADII = [0, 16, 30, 50];
 const SPEEDS = [0, 85, 55, 32];
 const POINTS = [0, 100, 50, 20];
 
-// Paleta. Son los mismos valores que los tokens de :root en app/globals.css
-// (--cyan, --yellow, --ink, --magenta), copiados aquí porque el canvas no
-// entiende de variables CSS. Si el tema cambia, hay que tocar los dos sitios.
-const COLORS = {
-  bg: "#000",
-  ship: "#00f5ff", // --cyan
-  thruster: "rgba(245,255,0,0.85)", // --yellow
-  bullet: "#e6e9ff", // --ink
-  asteroid: "rgba(230,233,255,0.75)", // --ink atenuado
-  particle: (alpha: number) => `rgba(245,255,0,${alpha.toFixed(2)})`, // --yellow
-  powerUp: "#ff006e", // --magenta
+// ── Paleta ────────────────────────────────────────────────────────────────────
+
+// La paleta de referencia. Son los mismos valores que los tokens de :root en
+// app/globals.css (--cyan, --yellow, --ink, --magenta), copiados aquí porque el
+// canvas no entiende de variables CSS: si el tema cambia, hay que tocar los dos
+// sitios.
+//
+// Cada color se guarda TAL COMO llega al contexto, con su alfa incluido si es
+// fijo. El alfa variable —el de las estelas que se apagan— lo pone conAlfa() en
+// el punto de dibujo.
+const PALETA_NEON = {
+  fondo: "#000",
+  nave: "#00f5ff", // --cyan
+  propulsor: "rgba(245,255,0,0.85)", // --yellow
+  bala: "#e6e9ff", // --ink
+  roca: "rgba(230,233,255,0.75)", // --ink atenuado
+  particula: "#f5ff00", // --yellow, se desvanece con conAlfa()
+  mejora: "#ff006e", // --magenta
 } as const;
+
+export type RolRocas = keyof typeof PALETA_NEON;
+export type PaletaRocas = Readonly<Record<RolRocas, string>>;
+
+export const SKINS_ROCAS: FichaDeSkins<RolRocas> = {
+  roles: {
+    fondo: { clase: "superficie" },
+    nave: { clase: "jugable" },
+    // El propulsor y las partículas son efectos: si se pierden un fotograma no
+    // se pierde la partida, así que no se les exige el mínimo de lo jugable.
+    propulsor: { clase: "decorado" },
+    bala: { clase: "jugable" },
+    roca: { clase: "jugable" },
+    particula: { clase: "decorado" },
+    mejora: { clase: "jugable" },
+  },
+  // La bala queda fuera del grupo a propósito. En el arcade original es del
+  // mismo blanco que la nave y se distingue por tamaño y movimiento, no por
+  // color; exigirle un salto la haría imposible en el skin clásico sin que
+  // nadie viese mejor.
+  grupos: [["nave", "roca", "mejora"]],
+  paletas: {
+    neon: PALETA_NEON,
+
+    // Monitor de fósforo ámbar: un solo tono y todo el trabajo hecho por la
+    // luminancia, que es lo que hace que se lea como un monitor y no como un
+    // neón naranja.
+    retro: {
+      fondo: "#000",
+      nave: "#ffcf70",
+      propulsor: "rgba(255,176,0,0.85)",
+      bala: "#fffbe6",
+      roca: "#c07800",
+      particula: "#ffb000",
+      mejora: "#ff8c1a",
+    },
+
+    // Asteroids era vectorial monocromo: blanco sobre negro. La roca baja a
+    // gris para separarse de la nave, y la mejora toma el azul que Asteroids
+    // Deluxe (1981) trajo al añadir color — el original no tenía power-ups.
+    clasico: {
+      fondo: "#000",
+      nave: "#ffffff",
+      propulsor: "rgba(255,255,255,0.85)",
+      bala: "#ffffff",
+      roca: "#b9b9b9",
+      particula: "#ffffff",
+      mejora: "#4d9fff",
+    },
+  },
+};
 
 const POWERUP_DROP_CHANCE = 0.15;
 const POWERUP_DURATION = 5; // segundos de triple disparo
@@ -145,8 +204,8 @@ export class Bullet {
     if (this.ttl <= 0) this.dead = true;
   }
 
-  draw(ctx: CanvasRenderingContext2D) {
-    ctx.fillStyle = COLORS.bullet;
+  draw(ctx: CanvasRenderingContext2D, paleta: PaletaRocas) {
+    ctx.fillStyle = paleta.bala;
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
     ctx.fill();
@@ -208,11 +267,11 @@ export class Asteroid {
     ];
   }
 
-  draw(ctx: CanvasRenderingContext2D) {
+  draw(ctx: CanvasRenderingContext2D, paleta: PaletaRocas) {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.rot);
-    ctx.strokeStyle = COLORS.asteroid;
+    ctx.strokeStyle = paleta.roca;
     ctx.lineWidth = 1.5;
     ctx.lineJoin = "round";
     ctx.beginPath();
@@ -255,7 +314,7 @@ export class PowerUp {
     if (this.ttl <= 0) this.dead = true;
   }
 
-  draw(ctx: CanvasRenderingContext2D) {
+  draw(ctx: CanvasRenderingContext2D, paleta: PaletaRocas) {
     // Parpadea los dos últimos segundos para avisar de que se va.
     if (this.ttl < 2 && Math.floor(this.ttl * 8) % 2 === 0) return;
 
@@ -263,13 +322,13 @@ export class PowerUp {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(Math.PI / 4);
-    ctx.strokeStyle = COLORS.powerUp;
+    ctx.strokeStyle = paleta.mejora;
     ctx.lineWidth = 2;
     const r = this.radius * pulse;
     ctx.strokeRect(-r, -r, r * 2, r * 2);
     ctx.restore();
 
-    ctx.fillStyle = COLORS.powerUp;
+    ctx.fillStyle = paleta.mejora;
     ctx.font = "bold 12px monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -350,7 +409,7 @@ export class Ship {
     return [new Bullet(ox, oy, this.angle)];
   }
 
-  draw(ctx: CanvasRenderingContext2D) {
+  draw(ctx: CanvasRenderingContext2D, paleta: PaletaRocas) {
     if (this.dead) return;
     // Parpadeo mientras es invencible tras reaparecer.
     if (this.invincible > 0 && Math.floor(this.invincible * 8) % 2 === 0)
@@ -359,7 +418,7 @@ export class Ship {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
-    ctx.strokeStyle = COLORS.ship;
+    ctx.strokeStyle = paleta.nave;
     ctx.lineWidth = 1.5;
     ctx.lineJoin = "round";
 
@@ -378,7 +437,7 @@ export class Ship {
       ctx.moveTo(-8, -4);
       ctx.lineTo(-8 - rand(6, 14), 0);
       ctx.lineTo(-8, 4);
-      ctx.strokeStyle = COLORS.thruster;
+      ctx.strokeStyle = paleta.propulsor;
       ctx.stroke();
     }
 
@@ -416,9 +475,9 @@ export class Particle {
     if (this.ttl <= 0) this.dead = true;
   }
 
-  draw(ctx: CanvasRenderingContext2D) {
+  draw(ctx: CanvasRenderingContext2D, paleta: PaletaRocas) {
     const alpha = this.ttl / this.life;
-    ctx.strokeStyle = COLORS.particle(alpha);
+    ctx.strokeStyle = conAlfa(paleta.particula, alpha);
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(this.x, this.y);
@@ -429,12 +488,24 @@ export class Particle {
 
 // ── Motor ─────────────────────────────────────────────────────────────────────
 
-export const createAsteroidsGame: GameFactory = (canvas, callbacks) => {
+// `skin` lleva valor por defecto y no interrogante: montar el motor sin elegir
+// nada tiene que pintar exactamente lo mismo que montarlo con "neon", y eso lo
+// comprueba verificaSkins() comparando las dos secuencias de color.
+export const createAsteroidsGame: GameFactory = (
+  canvas,
+  callbacks,
+  skin = "neon",
+) => {
   const context2d = canvas.getContext("2d");
   if (!context2d) throw new Error("ROCAS necesita un canvas 2D");
   // Con tipo explícito: el estrechamiento del guard no llega hasta draw(),
   // que es un closure.
   const ctx: CanvasRenderingContext2D = context2d;
+
+  // Se resuelve una vez al montar. La paleta no es estado del módulo: vive en
+  // el closure, como todo lo demás, así que dos motores con skins distintos no
+  // se pisan.
+  const paleta = paletaDe(SKINS_ROCAS, skin);
 
   const input = new Input();
 
@@ -629,14 +700,14 @@ export const createAsteroidsGame: GameFactory = (canvas, callbacks) => {
   // Sin HUD ni overlay: la puntuación, las vidas, el nivel y el fin de partida
   // los pinta la plataforma a partir de los callbacks.
   function draw() {
-    ctx.fillStyle = COLORS.bg;
+    ctx.fillStyle = paleta.fondo;
     ctx.fillRect(0, 0, W, H);
 
-    particles.forEach((p) => p.draw(ctx));
-    asteroids.forEach((a) => a.draw(ctx));
-    powerUps.forEach((p) => p.draw(ctx));
-    bullets.forEach((b) => b.draw(ctx));
-    ship.draw(ctx);
+    particles.forEach((p) => p.draw(ctx, paleta));
+    asteroids.forEach((a) => a.draw(ctx, paleta));
+    powerUps.forEach((p) => p.draw(ctx, paleta));
+    bullets.forEach((b) => b.draw(ctx, paleta));
+    ship.draw(ctx, paleta);
   }
 
   function loop(ts: number) {

@@ -17,6 +17,7 @@
 //    siguiente. GameFactory recibe uno, así que el preview va en el panel
 //    lateral del mismo canvas.
 
+import { paletaDe, type FichaDeSkins } from "./skins";
 import type { GameFactory, GameOverReason, GameOverSummary } from "./types";
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -51,27 +52,148 @@ const DROP_MIN = 100; // suelo de velocidad
 const DAS_DELAY = 170; // espera antes de empezar a repetir
 const DAS_PERIOD = 50; // periodo de repetición
 
-// Paleta de las ocho piezas. Los cuatro primeros son los tokens de :root en
-// app/globals.css, copiados aquí porque el canvas no entiende de variables CSS;
-// los cuatro siguientes son vecinos de la misma familia neón, porque el tema
-// solo tiene cuatro colores y Tetris necesita distinguir ocho piezas. Si el
-// tema cambia, hay que tocar los dos sitios.
-//
-// Indexados desde 0, pero en el tablero una celda vacía es 0 y una ocupada
-// guarda el tipo de pieza (1..8): el color de una celda es COLORS[celda - 1].
-const COLORS = [
-  "#00f5ff", // I — --cyan
-  "#f5ff00", // O — --yellow
-  "#ff006e", // T — --magenta
-  "#00ff88", // S — --green
-  "#ff5c00", // Z — naranja neón
-  "#4d7cff", // J — azul eléctrico
-  "#b14dff", // L — violeta
-  "#9aa0b5", // N — gris metálico (tuerca)
-] as const;
-
-const GRID_COLOR = "rgba(230,233,255,0.07)"; // --ink muy atenuado
 const EMPTY = 0;
+
+// ── Paleta ────────────────────────────────────────────────────────────────────
+
+// Todo el color del motor, en un solo sitio. Antes vivía en dos bloques
+// separados —COLORS y GRID_COLOR aquí, y WELL_BG / WELL_BORDER / LABEL_COLOR /
+// VALUE_COLOR abajo, en la sección de dibujo—, más un rgba blanco escrito a mano
+// dentro de drawCell, que era el realce de relieve de cada celda y el único
+// literal del proyecto suelto dentro de una función de dibujo. Ahora es el rol
+// `brillo`, y un skin puede teñirlo.
+//
+// Los valores son exactamente los que el motor tenía antes de la SPEC 13,
+// movidos carácter a carácter. Salen de los tokens de :root en app/globals.css,
+// copiados aquí porque el canvas no entiende de variables CSS; los cuatro
+// últimos colores de pieza son vecinos de la misma familia neón, porque el tema
+// solo tiene cuatro colores y Tetris necesita distinguir ocho piezas. Si el tema
+// cambia, hay que tocar los dos sitios.
+const PALETA_NEON = {
+  pozo: "#0f0f18", // --bg-2, el fondo del área de juego
+  rejilla: "rgba(230,233,255,0.07)", // --ink muy atenuado
+  brillo: "rgba(255,255,255,0.12)", // banda superior de relieve de cada celda
+  borde: "rgba(0,245,255,0.18)", // --line, marco del pozo y del recuadro
+  etiqueta: "#8a8fb5", // --ink-dim
+  valor: "#e6e9ff", // --ink
+  piezaI: "#00f5ff", // --cyan
+  piezaO: "#f5ff00", // --yellow
+  piezaT: "#ff006e", // --magenta
+  piezaS: "#00ff88", // --green
+  piezaZ: "#ff5c00", // naranja neón
+  piezaJ: "#4d7cff", // azul eléctrico
+  piezaL: "#b14dff", // violeta
+  piezaN: "#9aa0b5", // gris metálico (tuerca)
+} as const;
+
+export type RolCaida = keyof typeof PALETA_NEON;
+export type PaletaCaida = Readonly<Record<RolCaida, string>>;
+
+// En el tablero una celda vacía es 0 y una ocupada guarda el tipo de pieza
+// (1..8). Ese número ya no indexa un color sino un ROL, que se resuelve contra
+// la paleta en el punto de dibujo: es lo que hace las ocho piezas alcanzables
+// desde un skin.
+const ROL_DE_PIEZA: readonly RolCaida[] = [
+  "piezaI",
+  "piezaO",
+  "piezaT",
+  "piezaS",
+  "piezaZ",
+  "piezaJ",
+  "piezaL",
+  "piezaN",
+];
+
+export const SKINS_CAIDA: FichaDeSkins<RolCaida> = {
+  roles: {
+    // El pozo va primero: es el fondo del área de juego y la superficie de
+    // referencia de todos los demás roles. El canvas se limpia en vez de
+    // rellenarse —así el hueco alrededor del pozo deja ver el marco CRT—, de
+    // modo que el panel lateral se pinta en realidad sobre el fondo de la app
+    // (--bg, #0a0a0f), que es MÁS oscuro que el pozo: medirlo contra el pozo
+    // aprueba de menos, nunca de más.
+    pozo: { clase: "superficie" },
+    // Rejilla y brillo son textura, no elementos: en neón miden 1,16:1 y 1,37:1
+    // sobre el pozo. Declararlos "decorado" obligaría a subirlos, y subirlos
+    // sería reescribir la paleta neón, que está congelada. La clase que les
+    // corresponde es la que dice lo que son.
+    rejilla: { clase: "superficie" },
+    brillo: { clase: "superficie" },
+    borde: { clase: "decorado" },
+    // El panel lateral es el único texto que pinta un motor del portal: las
+    // líneas hechas no caben en ningún callback del contrato.
+    etiqueta: { clase: "texto" },
+    valor: { clase: "texto" },
+    piezaI: { clase: "jugable" },
+    piezaO: { clase: "jugable" },
+    piezaT: { clase: "jugable" },
+    piezaS: { clase: "jugable" },
+    piezaZ: { clase: "jugable" },
+    piezaJ: { clase: "jugable" },
+    piezaL: { clase: "jugable" },
+    piezaN: { clase: "jugable" },
+  },
+  // Las siete clásicas tienen que distinguirse entre sí. La tuerca queda fuera
+  // del grupo a propósito: es un 3×3 con el centro hueco, la única pieza que se
+  // reconoce por su silueta sin mirarle el color, y en las tres paletas es un
+  // gris desaturado que choca en luminancia con algún vecino (con la Z en neón,
+  // con la S y la Z en retro, con la L en clásico). Meterla dentro obligaría a
+  // estirar la rampa monocroma de retro por encima de lo que cabe entre 3:1 y
+  // el máximo físico de 21:1, sin que nadie distinguiese mejor.
+  grupos: [
+    ["piezaI", "piezaO", "piezaT", "piezaS", "piezaZ", "piezaJ", "piezaL"],
+  ],
+  paletas: {
+    neon: PALETA_NEON,
+
+    // Monitor de fósforo ámbar (#ffb000): un solo tono y todo el trabajo hecho
+    // por la luminancia. Las siete piezas son una rampa de razón ~1,33 entre
+    // escalones consecutivos —justo por encima del 1,3 que exige la
+    // distinguibilidad— que va de 3,16:1 (la L) a 17,41:1 (la I) sobre el pozo;
+    // los siete pasos caben porque 3 × 1,3⁶ ≈ 14,5 < 21. El pozo es un ámbar
+    // casi apagado en vez del azulado del neón: en un monitor de fósforo hasta
+    // el negro tira al color del tubo.
+    retro: {
+      pozo: "#120c00",
+      rejilla: "rgba(255,176,0,0.08)", // 1,13:1
+      brillo: "rgba(255,231,179,0.12)", // 1,31:1
+      borde: "rgba(255,176,0,0.30)", // 1,95:1
+      etiqueta: "#c98a1e", // 6,62:1
+      valor: "#ffe9b8", // 16,32:1
+      piezaI: "#fff1d3", // 17,41:1
+      piezaO: "#ffcc5c", // 13,02:1
+      piezaT: "#f6a900", // 9,82:1
+      piezaS: "#d49300", // 7,39:1
+      piezaZ: "#b77f00", // 5,61:1
+      piezaJ: "#9c6c00", // 4,23:1
+      piezaL: "#825a00", // 3,16:1
+      piezaN: "#a08a5e", // 5,83:1 — ámbar sucio, fuera de la rampa
+    },
+
+    // Los colores con los que se juega a Tetris desde el arcade: cian, amarillo,
+    // púrpura, verde, rojo, azul y naranja sobre negro, más el gris de la
+    // tuerca. Dos suben respecto al original porque no llegaban al mínimo de lo
+    // jugable sobre el pozo: la J (#0000ff, 2,20:1) y la T (#800080, 2,20:1).
+    // Se les subió la luminancia manteniendo el tono (azul 231°, púrpura 291°),
+    // que es la concesión mínima para que sigan siendo reconocibles.
+    clasico: {
+      pozo: "#0d0d0d",
+      rejilla: "rgba(255,255,255,0.06)", // 1,13:1
+      brillo: "rgba(255,255,255,0.12)", // 1,35:1
+      borde: "#6b6b6b", // 3,65:1
+      etiqueta: "#b4b4b4", // 9,37:1
+      valor: "#ffffff", // 19,44:1
+      piezaI: "#00ffff", // 15,50:1
+      piezaO: "#ffff00", // 18,10:1
+      piezaT: "#c14fd8", // 4,98:1 — #800080 subido
+      piezaS: "#00ff00", // 14,16:1
+      piezaZ: "#ff0000", // 4,86:1
+      piezaJ: "#5c78ff", // 5,17:1 — #0000ff subido
+      piezaL: "#ff7f00", // 7,67:1
+      piezaN: "#a0a0a0", // 7,43:1
+    },
+  },
+};
 
 // ── Piezas ────────────────────────────────────────────────────────────────────
 
@@ -384,11 +506,6 @@ export class Input {
 const PREVIEW_BLOCK = 22; // lado de celda en el recuadro de la pieza siguiente
 const PREVIEW_BOX = 4 * PREVIEW_BLOCK; // el marco es de 4×4 celdas
 
-const WELL_BG = "#0f0f18"; // --bg-2
-const WELL_BORDER = "rgba(0,245,255,0.18)"; // --line
-const LABEL_COLOR = "#8a8fb5"; // --ink-dim
-const VALUE_COLOR = "#e6e9ff"; // --ink
-
 // Se usa monospace y no la Press Start 2P del tema: next/font genera un nombre
 // de familia con hash que el canvas no puede resolver por su variable CSS, y
 // una fuente que no carga degrada a un fallback impredecible. El texto del
@@ -399,21 +516,26 @@ const VALUE_FONT = 'bold 20px ui-monospace, "Courier New", monospace';
 // Un bloque, en píxeles absolutos del canvas. El +1/−2 deja una junta oscura
 // entre celdas contiguas y la banda superior clara simula el relieve del
 // original.
+//
+// La paleta baja por argumento hasta aquí, como en asteroids.ts: capturarla a
+// nivel de módulo sería estado compartido entre montajes, que es justo lo que
+// prohíbe la invariante nº 1 del contrato.
 function drawCell(
   ctx: CanvasRenderingContext2D,
+  paleta: PaletaCaida,
   px: number,
   py: number,
   type: number,
   size: number,
   alpha = 1,
 ): void {
-  const color = COLORS[type - 1];
-  if (!color) return;
+  const rol = ROL_DE_PIEZA[type - 1];
+  if (!rol) return;
 
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = color;
+  ctx.fillStyle = paleta[rol];
   ctx.fillRect(px + 1, py + 1, size - 2, size - 2);
-  ctx.fillStyle = "rgba(255,255,255,0.12)";
+  ctx.fillStyle = paleta.brillo;
   ctx.fillRect(px + 1, py + 1, size - 2, Math.max(2, Math.round(size * 0.14)));
   ctx.globalAlpha = 1;
 }
@@ -421,18 +543,24 @@ function drawCell(
 // Fondo y borde del área de juego. El original no lo necesita porque su canvas
 // es exactamente el tablero; aquí el pozo flota dentro de 800×600 y sin marco
 // no se distinguiría del vacío.
-export function drawWell(ctx: CanvasRenderingContext2D): void {
-  ctx.fillStyle = WELL_BG;
+export function drawWell(
+  ctx: CanvasRenderingContext2D,
+  paleta: PaletaCaida,
+): void {
+  ctx.fillStyle = paleta.pozo;
   ctx.fillRect(BOARD_X, BOARD_Y, COLS * BLOCK, ROWS * BLOCK);
-  ctx.strokeStyle = WELL_BORDER;
+  ctx.strokeStyle = paleta.borde;
   ctx.lineWidth = 2;
   ctx.strokeRect(BOARD_X - 1, BOARD_Y - 1, COLS * BLOCK + 2, ROWS * BLOCK + 2);
 }
 
 // El medio píxel evita que una línea de 1 px quede repartida entre dos
 // columnas de píxeles y se vea gris y difusa.
-export function drawGrid(ctx: CanvasRenderingContext2D): void {
-  ctx.strokeStyle = GRID_COLOR;
+export function drawGrid(
+  ctx: CanvasRenderingContext2D,
+  paleta: PaletaCaida,
+): void {
+  ctx.strokeStyle = paleta.rejilla;
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let c = 1; c < COLS; c++) {
@@ -448,12 +576,23 @@ export function drawGrid(ctx: CanvasRenderingContext2D): void {
   ctx.stroke();
 }
 
-export function drawBoard(ctx: CanvasRenderingContext2D, board: Board): void {
+export function drawBoard(
+  ctx: CanvasRenderingContext2D,
+  paleta: PaletaCaida,
+  board: Board,
+): void {
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const cell = board[r][c];
       if (cell === EMPTY) continue;
-      drawCell(ctx, BOARD_X + c * BLOCK, BOARD_Y + r * BLOCK, cell, BLOCK);
+      drawCell(
+        ctx,
+        paleta,
+        BOARD_X + c * BLOCK,
+        BOARD_Y + r * BLOCK,
+        cell,
+        BLOCK,
+      );
     }
   }
 }
@@ -463,6 +602,7 @@ export function drawBoard(ctx: CanvasRenderingContext2D, board: Board): void {
 // recién aparecida asoma por arriba.
 export function drawPiece(
   ctx: CanvasRenderingContext2D,
+  paleta: PaletaCaida,
   piece: Piece,
   atY: number,
   alpha = 1,
@@ -475,6 +615,7 @@ export function drawPiece(
       if (y < 0 || y >= ROWS) continue;
       drawCell(
         ctx,
+        paleta,
         BOARD_X + (piece.x + c) * BLOCK,
         BOARD_Y + y * BLOCK,
         cell,
@@ -490,17 +631,18 @@ export function drawPiece(
 // transporte, y son la métrica central de Tetris.
 export function drawPanel(
   ctx: CanvasRenderingContext2D,
+  paleta: PaletaCaida,
   next: Piece,
   lines: number,
 ): void {
   const boxY = BOARD_Y + 34;
 
   ctx.font = LABEL_FONT;
-  ctx.fillStyle = LABEL_COLOR;
+  ctx.fillStyle = paleta.etiqueta;
   ctx.textBaseline = "alphabetic";
   ctx.fillText("SIGUIENTE", PANEL_X, BOARD_Y + 20);
 
-  ctx.strokeStyle = WELL_BORDER;
+  ctx.strokeStyle = paleta.borde;
   ctx.lineWidth = 1;
   ctx.strokeRect(PANEL_X + 0.5, boxY + 0.5, PREVIEW_BOX, PREVIEW_BOX);
 
@@ -514,6 +656,7 @@ export function drawPanel(
       if (!cell) continue;
       drawCell(
         ctx,
+        paleta,
         PANEL_X + (offX + c) * PREVIEW_BLOCK,
         boxY + (offY + r) * PREVIEW_BLOCK,
         cell,
@@ -523,22 +666,34 @@ export function drawPanel(
   }
 
   ctx.font = LABEL_FONT;
-  ctx.fillStyle = LABEL_COLOR;
+  ctx.fillStyle = paleta.etiqueta;
   ctx.fillText("LÍNEAS", PANEL_X, boxY + PREVIEW_BOX + 46);
 
   ctx.font = VALUE_FONT;
-  ctx.fillStyle = VALUE_COLOR;
+  ctx.fillStyle = paleta.valor;
   ctx.fillText(String(lines), PANEL_X, boxY + PREVIEW_BOX + 74);
 }
 
 // ── Motor ─────────────────────────────────────────────────────────────────────
 
-export const createTetrisGame: GameFactory = (canvas, callbacks) => {
+// `skin` lleva valor por defecto y no interrogante: con el default, la aridad
+// de la factory sigue siendo 2 —que es lo que afirma registry.test.ts— y montar
+// el motor sin elegir nada pinta exactamente lo mismo que montarlo con "neon",
+// cosa que comprueba verificaSkins() comparando las dos secuencias de color.
+export const createTetrisGame: GameFactory = (
+  canvas,
+  callbacks,
+  skin = "neon",
+) => {
   const context2d = canvas.getContext("2d");
   if (!context2d) throw new Error("CAÍDA necesita un canvas 2D");
   // Con tipo explícito: el estrechamiento del guard no llega hasta draw(), que
   // es un closure.
   const ctx: CanvasRenderingContext2D = context2d;
+
+  // Se resuelve una vez al montar y vive en el closure, como el resto del
+  // estado: dos motores con skins distintos no se pisan.
+  const paleta = paletaDe(SKINS_CAIDA, skin);
 
   const input = new Input();
 
@@ -700,14 +855,14 @@ export const createTetrisGame: GameFactory = (canvas, callbacks) => {
   // deja ver el fondo del marco CRT en lugar de un rectángulo negro pegado.
   function draw() {
     ctx.clearRect(0, 0, W, H);
-    drawWell(ctx);
-    drawGrid(ctx);
-    drawBoard(ctx, board);
+    drawWell(ctx, paleta);
+    drawGrid(ctx, paleta);
+    drawBoard(ctx, paleta, board);
     if (state !== "gameover") {
-      drawPiece(ctx, current, ghostY(board, current), 0.2);
-      drawPiece(ctx, current, current.y);
+      drawPiece(ctx, paleta, current, ghostY(board, current), 0.2);
+      drawPiece(ctx, paleta, current, current.y);
     }
-    drawPanel(ctx, next, lines);
+    drawPanel(ctx, paleta, next, lines);
   }
 
   function loop(ts: number) {

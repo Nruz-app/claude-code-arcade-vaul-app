@@ -26,6 +26,7 @@
 // a la pantalla arrastraría la partida anterior.
 
 import { crearSfx } from "./audio";
+import { paletaDe, type FichaDeSkins } from "./skins";
 import type { GameFactory, GameOverReason, GameOverSummary } from "./types";
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -122,31 +123,190 @@ const SFX_CHOQUE_SRC = "/rana-choque.mp3";
 const SFX_SALTO_VOL = 0.35;
 const SFX_CHOQUE_VOL = 0.75;
 
-// Son los mismos valores que los tokens de :root en app/globals.css. El canvas no
-// entiende de variables CSS: si el tema cambia, hay que tocar los dos sitios.
-const COLORS = {
+// ── Paleta ────────────────────────────────────────────────────────────────────
+
+// La paleta de referencia. Son los mismos valores que los tokens de :root en
+// app/globals.css. El canvas no entiende de variables CSS: si el tema cambia,
+// hay que tocar los dos sitios.
+//
+// El primer rol es el fondo del canvas y es la superficie contra la que se mide
+// todo lo que no declare otra. Cada color se guarda TAL COMO llega al contexto,
+// con su alfa incluido si es fijo.
+//
+// Los cinco colores de los vehículos vivían sueltos en la tabla CARRILES, donde
+// ningún skin podía alcanzarlos: ahora son roles y la tabla guarda el NOMBRE del
+// rol, que se resuelve al dibujar con paleta[def.color].
+const PALETA_NEON = {
+  // Superficies, de arriba abajo del tablero.
   fondo: "#000",
-  tierra: "#0d1f18", // orillas y mediana: verde muy oscuro
-  tierraBorde: "rgba(0,255,136,0.25)", // --green diluido
-  asfalto: "#0a0a12",
-  linea: "rgba(230,233,255,0.16)", // --ink diluido: la discontinua del carril
+  seto: "#0a2a1c", // la meta: seto continuo con los nenúfares por huecos
   agua: "#001a2a",
   aguaBrillo: "rgba(0,245,255,0.10)", // --cyan diluido: la ondulación
+  asfalto: "#0a0a12",
+  linea: "rgba(230,233,255,0.16)", // --ink diluido: la discontinua del carril
+  tierra: "#0d1f18", // orillas y mediana: verde muy oscuro
+  tierraBorde: "rgba(0,255,136,0.25)", // --green diluido
+  // La rana.
   rana: "#00ff88", // --green, que es el acento de ranaria en GAMES
   ranaClaro: "#7dffc4",
   ranaOjo: "#001a10",
   ranaMuerta: "#ff006e", // --magenta: el destello al morir
+  // La meta.
   nenufar: "rgba(0,255,136,0.35)",
   nenufarBorde: "#00ff88",
-  seto: "#0a2a1c",
-  tortuga: "#00f5ff", // --cyan
-  tortugaCaparazon: "#005f6b",
   mosca: "#f5ff00", // --yellow
-  barraTiempo: "#f5ff00", // --yellow
-  barraTiempoBajo: "#ff006e", // --magenta, por debajo de 5 s
+  // El río.
   tronco: "#c98a4b", // el único color fuera de la paleta del tema
   troncoBorde: "#f0b070",
+  tortuga: "#00f5ff", // --cyan
+  tortugaCaparazon: "#005f6b",
+  // La carretera. Los cinco vehículos, uno por carril, de la fila 6 a la 10; el
+  // camión es el de la 6, más largo y más lento.
+  camion: "#9aa0b5",
+  coche1: "#00f5ff",
+  coche2: "#f5ff00",
+  coche3: "#ff5cae",
+  coche4: "#ff006e",
+  faro: "#f5ff00", // el destello del morro; era un préstamo de `mosca`
+  // El HUD del propio motor.
+  barraTiempo: "#f5ff00", // --yellow
+  barraTiempoBajo: "#ff006e", // --magenta, por debajo de 5 s
 } as const;
+
+export type RolRanaria = keyof typeof PALETA_NEON;
+export type PaletaRanaria = Readonly<Record<RolRanaria, string>>;
+
+export const SKINS_RANARIA: FichaDeSkins<RolRanaria> = {
+  roles: {
+    fondo: { clase: "superficie" },
+    seto: { clase: "superficie" },
+    agua: { clase: "superficie" },
+    // La ondulación y la discontinua son TEXTURA de su superficie, no elementos
+    // sobre ella: se les exige que no destaquen (máximo 2:1), que es justo lo
+    // que mantiene el agua y el asfalto leyéndose como fondo. Con la exigencia
+    // de "decorado" ni siquiera el neón que el portal lleva meses enseñando
+    // pasaría (1,26:1 y 1,46:1), y el neón no se toca.
+    aguaBrillo: { clase: "superficie", sobre: "agua" },
+    asfalto: { clase: "superficie" },
+    linea: { clase: "superficie", sobre: "asfalto" },
+    tierra: { clase: "superficie" },
+    tierraBorde: { clase: "decorado", sobre: "tierra" },
+    // La rana cruza las tres bandas; se mide sobre el agua, que es la más clara
+    // de las tres y por tanto el peor caso.
+    rana: { clase: "jugable", sobre: "agua" },
+    // El reflejo se mide contra el fondo del canvas y no contra el cuerpo de la
+    // rana: es un detalle de forma pintado ENCIMA del cuerpo, y exigirle
+    // contraste contra él lo convertiría en otro color, no en un reflejo.
+    ranaClaro: { clase: "decorado" },
+    ranaOjo: { clase: "decorado", sobre: "ranaClaro" },
+    ranaMuerta: { clase: "jugable", sobre: "agua" },
+    nenufar: { clase: "decorado", sobre: "seto" },
+    nenufarBorde: { clase: "jugable", sobre: "seto" },
+    mosca: { clase: "jugable", sobre: "seto" },
+    tronco: { clase: "jugable", sobre: "agua" },
+    troncoBorde: { clase: "decorado", sobre: "tronco" },
+    tortuga: { clase: "jugable", sobre: "agua" },
+    tortugaCaparazon: { clase: "decorado", sobre: "tortuga" },
+    camion: { clase: "jugable", sobre: "asfalto" },
+    coche1: { clase: "jugable", sobre: "asfalto" },
+    coche2: { clase: "jugable", sobre: "asfalto" },
+    coche3: { clase: "jugable", sobre: "asfalto" },
+    coche4: { clase: "jugable", sobre: "asfalto" },
+    faro: { clase: "decorado", sobre: "asfalto" },
+    // La barra de tiempo se pinta sobre la orilla de salida.
+    barraTiempo: { clase: "jugable", sobre: "tierra" },
+    barraTiempoBajo: { clase: "jugable", sobre: "tierra" },
+  },
+  // Los grupos se declaran POR BANDA y no globalmente: un tronco y un coche
+  // nunca comparten franja, así que no compiten entre sí y exigirles un salto
+  // de color solo empobrecería las dos paletas nuevas.
+  //
+  // El camión va en un grupo aparte con la rana, no con los turismos. Es el
+  // único vehículo de dos celdas y se lee por tamaño —por eso el neón lo pinta
+  // gris, "para que se lea como otra cosa"—, y ese gris (saturación 0,15) no se
+  // separa del rosa del coche3 ni por luminancia (1,09) ni por tono. Lo que sí
+  // hay que distinguir siempre es al camión de la rana, y eso se mantiene.
+  grupos: [
+    ["rana", "tronco", "tortuga"], // el río
+    ["coche1", "coche2", "coche3", "coche4", "rana"], // la carretera
+    ["camion", "rana"],
+  ],
+  paletas: {
+    neon: PALETA_NEON,
+
+    // Monitor de fósforo ámbar: un solo tono, familia #ffb000, y todo el trabajo
+    // hecho por la luminancia. Los cinco vehículos y la rana forman una escalera
+    // de seis peldaños —camión el más apagado, rana el más claro— con al menos
+    // 1,35× de luminancia entre peldaños contiguos, que es lo que permite
+    // distinguirlos sin un segundo tono.
+    retro: {
+      fondo: "#000",
+      seto: "#150c00",
+      agua: "#0a0500",
+      aguaBrillo: "rgba(255,176,0,0.10)",
+      asfalto: "#0d0900",
+      linea: "rgba(255,224,168,0.16)",
+      tierra: "#1a1000",
+      tierraBorde: "rgba(255,176,0,0.35)",
+      rana: "#ffe6b8",
+      ranaClaro: "#fff6e4",
+      ranaOjo: "#1a0e00",
+      ranaMuerta: "#ff7a00",
+      nenufar: "rgba(255,176,0,0.30)",
+      nenufarBorde: "#ffb000",
+      mosca: "#ffe08c",
+      tronco: "#c07800",
+      troncoBorde: "#ffb000",
+      tortuga: "#e0a030",
+      tortugaCaparazon: "#4a2e00",
+      camion: "#8a5a00",
+      coche1: "#ffbe4a",
+      coche2: "#e59d10",
+      coche3: "#c88400",
+      coche4: "#a86c00",
+      faro: "#fff2d0",
+      barraTiempo: "#ffb000",
+      barraTiempoBajo: "#ff7a00",
+    },
+
+    // El Frogger de recreativa (Konami/Sega, 1981): río azul, troncos marrones,
+    // tortugas amarillentas, rana lima y las franjas seguras en violeta.
+    //
+    // Dos subidas obligadas respecto al original, las dos por contraste: el azul
+    // del agua no puede ser el #0000ff puro (2,44:1 sobre el negro del canvas,
+    // por encima del máximo de 2:1 que separa un fondo de un elemento) y el azul
+    // del coche tampoco (2,44:1, por debajo del 3:1 de lo jugable).
+    clasico: {
+      fondo: "#000",
+      seto: "#0a3a14",
+      agua: "#0000d0",
+      aguaBrillo: "rgba(80,140,255,0.18)",
+      asfalto: "#101010",
+      linea: "rgba(255,255,255,0.14)",
+      tierra: "#2a1052",
+      tierraBorde: "rgba(190,120,255,0.45)",
+      rana: "#66e000",
+      ranaClaro: "#ffffff",
+      ranaOjo: "#001400",
+      ranaMuerta: "#ff4d3d",
+      nenufar: "rgba(0,200,90,0.30)",
+      nenufarBorde: "#00c853",
+      mosca: "#ffe95c",
+      tronco: "#cd853f",
+      troncoBorde: "#eeb87a",
+      tortuga: "#e0c000",
+      tortugaCaparazon: "#6b5400",
+      camion: "#f2f2f2",
+      coche1: "#4d9fff",
+      coche2: "#ffd400",
+      coche3: "#c04ae6",
+      coche4: "#ff7a00",
+      faro: "#fff3b0",
+      barraTiempo: "#ffd400",
+      barraTiempoBajo: "#ff4d3d",
+    },
+  },
+};
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -159,7 +319,10 @@ interface CarrilDef {
   vel: number; // px/s en el nivel 1
   largo: number; // celdas que ocupa un móvil
   hueco: number; // celdas libres entre dos móviles
-  color: string;
+  // El NOMBRE del rol, no el color: un literal aquí sería inalcanzable para un
+  // skin. Se resuelve en el punto de dibujo con paleta[def.color], como hace
+  // BLOQUE BUSTER con sus bloques.
+  color: RolRanaria;
 }
 
 interface Movil {
@@ -211,17 +374,18 @@ type MotivoMuerte = "atropello" | "ahogo" | "arrastre" | "seto" | "tiempo";
 // siempre la jugada correcta.
 const CARRILES: readonly CarrilDef[] = [
   // Río: lo que se mueve es lo único seguro.
-  { fila: 1, tipo: "tronco", dir: 1, vel: 55, largo: 3, hueco: 3, color: COLORS.tronco }, // prettier-ignore
-  { fila: 2, tipo: "tortuga", dir: -1, vel: 70, largo: 2, hueco: 3, color: COLORS.tortuga }, // prettier-ignore
-  { fila: 3, tipo: "tronco", dir: 1, vel: 45, largo: 4, hueco: 4, color: COLORS.tronco }, // prettier-ignore
-  { fila: 4, tipo: "tortuga", dir: -1, vel: 85, largo: 3, hueco: 4, color: COLORS.tortuga }, // prettier-ignore
+  { fila: 1, tipo: "tronco", dir: 1, vel: 55, largo: 3, hueco: 3, color: "tronco" }, // prettier-ignore
+  { fila: 2, tipo: "tortuga", dir: -1, vel: 70, largo: 2, hueco: 3, color: "tortuga" }, // prettier-ignore
+  { fila: 3, tipo: "tronco", dir: 1, vel: 45, largo: 4, hueco: 4, color: "tronco" }, // prettier-ignore
+  { fila: 4, tipo: "tortuga", dir: -1, vel: 85, largo: 3, hueco: 4, color: "tortuga" }, // prettier-ignore
   // Carretera: el suelo es seguro y lo que se mueve mata. El de la fila 6 es el
-  // camión: más largo y más lento, y en gris para que se lea como "otra cosa".
-  { fila: 6, tipo: "vehiculo", dir: 1, vel: 75, largo: 2, hueco: 5, color: "#9aa0b5" }, // prettier-ignore
-  { fila: 7, tipo: "vehiculo", dir: -1, vel: 160, largo: 1, hueco: 5, color: "#00f5ff" }, // prettier-ignore
-  { fila: 8, tipo: "vehiculo", dir: 1, vel: 110, largo: 1, hueco: 3, color: "#f5ff00" }, // prettier-ignore
-  { fila: 9, tipo: "vehiculo", dir: -1, vel: 130, largo: 1, hueco: 4, color: "#ff5cae" }, // prettier-ignore
-  { fila: 10, tipo: "vehiculo", dir: 1, vel: 90, largo: 1, hueco: 4, color: "#ff006e" }, // prettier-ignore
+  // camión: más largo y más lento, y con su propio rol para que se lea como
+  // "otra cosa" en las tres paletas.
+  { fila: 6, tipo: "vehiculo", dir: 1, vel: 75, largo: 2, hueco: 5, color: "camion" }, // prettier-ignore
+  { fila: 7, tipo: "vehiculo", dir: -1, vel: 160, largo: 1, hueco: 5, color: "coche1" }, // prettier-ignore
+  { fila: 8, tipo: "vehiculo", dir: 1, vel: 110, largo: 1, hueco: 3, color: "coche2" }, // prettier-ignore
+  { fila: 9, tipo: "vehiculo", dir: -1, vel: 130, largo: 1, hueco: 4, color: "coche3" }, // prettier-ignore
+  { fila: 10, tipo: "vehiculo", dir: 1, vel: 90, largo: 1, hueco: 4, color: "coche4" }, // prettier-ignore
 ];
 
 // ── Reglas puras ──────────────────────────────────────────────────────────────
@@ -448,17 +612,17 @@ function rectRedondeado(
   ctx.fill();
 }
 
-function drawEscenario(ctx: CanvasRenderingContext2D) {
-  ctx.fillStyle = COLORS.fondo;
+function drawEscenario(ctx: CanvasRenderingContext2D, paleta: PaletaRanaria) {
+  ctx.fillStyle = paleta.fondo;
   ctx.fillRect(0, 0, W, H);
 
   // Río, con dos ondulaciones tenues por carril para que el agua no sea un
   // rectángulo plano.
   const filasRio = FILA_RIO_FIN - FILA_RIO_INI + 1;
-  ctx.fillStyle = COLORS.agua;
+  ctx.fillStyle = paleta.agua;
   ctx.fillRect(0, filaY(FILA_RIO_INI), W, filasRio * CELL);
 
-  ctx.strokeStyle = COLORS.aguaBrillo;
+  ctx.strokeStyle = paleta.aguaBrillo;
   ctx.lineWidth = 2;
   for (let fila = FILA_RIO_INI; fila <= FILA_RIO_FIN; fila++) {
     for (const off of [0.32, 0.68]) {
@@ -475,11 +639,11 @@ function drawEscenario(ctx: CanvasRenderingContext2D) {
 
   // Carretera, con la discontinua entre carril y carril.
   const filasVia = FILA_CARRETERA_FIN - FILA_CARRETERA_INI + 1;
-  ctx.fillStyle = COLORS.asfalto;
+  ctx.fillStyle = paleta.asfalto;
   ctx.fillRect(0, filaY(FILA_CARRETERA_INI), W, filasVia * CELL);
 
   ctx.save();
-  ctx.strokeStyle = COLORS.linea;
+  ctx.strokeStyle = paleta.linea;
   ctx.lineWidth = 2;
   ctx.setLineDash([18, 14]);
   ctx.beginPath();
@@ -491,11 +655,11 @@ function drawEscenario(ctx: CanvasRenderingContext2D) {
   ctx.restore();
 
   // Tierra firme: mediana y orilla de salida, con su borde verde.
-  ctx.fillStyle = COLORS.tierra;
+  ctx.fillStyle = paleta.tierra;
   ctx.fillRect(0, filaY(FILA_MEDIANA), W, CELL);
   ctx.fillRect(0, filaY(FILA_SALIDA), W, CELL);
 
-  ctx.strokeStyle = COLORS.tierraBorde;
+  ctx.strokeStyle = paleta.tierraBorde;
   ctx.lineWidth = 2;
   ctx.beginPath();
   for (const fila of [FILA_MEDIANA, FILA_SALIDA]) {
@@ -507,12 +671,13 @@ function drawEscenario(ctx: CanvasRenderingContext2D) {
   ctx.stroke();
 
   // Meta: seto continuo del que los nenúfares son los únicos huecos.
-  ctx.fillStyle = COLORS.seto;
+  ctx.fillStyle = paleta.seto;
   ctx.fillRect(0, filaY(FILA_META), W, CELL);
 }
 
 function drawNenufares(
   ctx: CanvasRenderingContext2D,
+  paleta: PaletaRanaria,
   nenufares: readonly Nenufar[],
   ahora: number,
 ) {
@@ -521,10 +686,10 @@ function drawNenufares(
     const cy = filaY(FILA_META) + CELL / 2;
 
     ctx.save();
-    ctx.fillStyle = COLORS.nenufar;
-    ctx.strokeStyle = COLORS.nenufarBorde;
+    ctx.fillStyle = paleta.nenufar;
+    ctx.strokeStyle = paleta.nenufarBorde;
     ctx.lineWidth = 2;
-    ctx.shadowColor = COLORS.nenufarBorde;
+    ctx.shadowColor = paleta.nenufarBorde;
     ctx.shadowBlur = 8;
     ctx.beginPath();
     ctx.arc(cx, cy, CELL * 0.4, 0, Math.PI * 2);
@@ -536,11 +701,11 @@ function drawNenufares(
     // progreso del nivel, y se lee de un vistazo.
     if (nenufar.ocupado) {
       ctx.save();
-      ctx.fillStyle = COLORS.rana;
+      ctx.fillStyle = paleta.rana;
       ctx.beginPath();
       ctx.arc(cx, cy + 2, CELL * 0.18, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = COLORS.ranaClaro;
+      ctx.fillStyle = paleta.ranaClaro;
       for (const lado of [-1, 1]) {
         ctx.beginPath();
         ctx.arc(cx + lado * CELL * 0.11, cy - CELL * 0.1, 3, 0, Math.PI * 2);
@@ -557,8 +722,8 @@ function drawNenufares(
       if (avisando && Math.floor(ahora / 150) % 2 === 0) continue;
 
       ctx.save();
-      ctx.fillStyle = COLORS.mosca;
-      ctx.shadowColor = COLORS.mosca;
+      ctx.fillStyle = paleta.mosca;
+      ctx.shadowColor = paleta.mosca;
       ctx.shadowBlur = 10;
       ctx.beginPath();
       ctx.arc(cx, cy, CELL * 0.13, 0, Math.PI * 2);
@@ -585,6 +750,7 @@ function drawNenufares(
 
 function drawMovil(
   ctx: CanvasRenderingContext2D,
+  paleta: PaletaRanaria,
   carril: Carril,
   movil: Movil,
   ahora: number,
@@ -593,12 +759,14 @@ function drawMovil(
   const x = movil.x;
   const y = filaY(def.fila);
   const w = def.largo * CELL;
+  // La tabla guarda el nombre del rol; el color sale de la paleta del skin.
+  const color = paleta[def.color];
 
   if (def.tipo === "tronco") {
     ctx.save();
-    ctx.fillStyle = def.color;
+    ctx.fillStyle = color;
     rectRedondeado(ctx, x + 2, y + 8, w - 4, CELL - 16, 8);
-    ctx.strokeStyle = COLORS.troncoBorde;
+    ctx.strokeStyle = paleta.troncoBorde;
     ctx.lineWidth = 2;
     ctx.stroke();
     // Tres vetas, para que el tronco no sea una barra lisa.
@@ -623,16 +791,16 @@ function drawMovil(
     if (estado === "parpadeo") {
       ctx.globalAlpha = Math.floor(ahora / 150) % 2 === 0 ? 0.35 : 0.85;
     }
-    ctx.shadowColor = def.color;
+    ctx.shadowColor = color;
     ctx.shadowBlur = 8;
     for (let i = 0; i < def.largo; i++) {
       const cx = x + i * CELL + CELL / 2;
       const cy = y + CELL / 2;
-      ctx.fillStyle = def.color;
+      ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(cx, cy, CELL * 0.4, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = COLORS.tortugaCaparazon;
+      ctx.fillStyle = paleta.tortugaCaparazon;
       ctx.beginPath();
       ctx.arc(cx, cy, CELL * 0.26, 0, Math.PI * 2);
       ctx.fill();
@@ -644,14 +812,17 @@ function drawMovil(
   // Vehículo. El morro va en el sentido de la marcha, así que los faros cambian
   // de lado con dir.
   ctx.save();
-  ctx.fillStyle = def.color;
-  ctx.shadowColor = def.color;
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
   ctx.shadowBlur = 10;
   rectRedondeado(ctx, x + 4, y + 7, w - 8, CELL - 14, 7);
   ctx.restore();
 
+  // Las ventanillas son el hueco oscuro del vehículo, y por eso reutilizan el
+  // rol del fondo en vez de tener uno propio: un cristal más claro que la
+  // carrocería dejaría de leerse como hueco en cualquiera de las tres paletas.
   ctx.save();
-  ctx.fillStyle = COLORS.fondo;
+  ctx.fillStyle = paleta.fondo;
   ctx.globalAlpha = 0.55;
   const ventanillas = Math.max(1, def.largo);
   for (let i = 0; i < ventanillas; i++) {
@@ -659,7 +830,7 @@ function drawMovil(
   }
   ctx.restore();
 
-  ctx.fillStyle = COLORS.mosca; // amarillo de faro
+  ctx.fillStyle = paleta.faro;
   const faroX = def.dir === 1 ? x + w - 9 : x + 4;
   ctx.fillRect(faroX, y + 12, 5, 5);
   ctx.fillRect(faroX, y + CELL - 17, 5, 5);
@@ -667,6 +838,7 @@ function drawMovil(
 
 function drawRana(
   ctx: CanvasRenderingContext2D,
+  paleta: PaletaRanaria,
   x: number,
   y: number,
   mirando: Vec,
@@ -674,14 +846,14 @@ function drawRana(
   muriendo: boolean,
   ahora: number,
 ) {
-  // Durante la muerte parpadea en magenta: el destello es lo que deja ver qué te
-  // mató antes de reaparecer.
+  // Durante la muerte parpadea con el color de alarma de la paleta (magenta en
+  // neón): el destello es lo que deja ver qué te mató antes de reaparecer.
   if (muriendo && Math.floor(ahora / 90) % 2 === 0) return;
 
   const cx = x + CELL / 2;
   const cy = y + CELL / 2;
-  const cuerpo = muriendo ? COLORS.ranaMuerta : COLORS.rana;
-  const claro = muriendo ? COLORS.ranaMuerta : COLORS.ranaClaro;
+  const cuerpo = muriendo ? paleta.ranaMuerta : paleta.rana;
+  const claro = muriendo ? paleta.ranaMuerta : paleta.ranaClaro;
 
   // Se estira al despegar y se recoge al caer, conservando el volumen: es lo que
   // hace legible el salto con una interpolación de solo 90 ms.
@@ -729,7 +901,7 @@ function drawRana(
     ctx.beginPath();
     ctx.arc(ox, oy, 5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = COLORS.ranaOjo;
+    ctx.fillStyle = paleta.ranaOjo;
     ctx.beginPath();
     ctx.arc(ox + mirando.dc * 1.5, oy + mirando.dr * 1.5, 2.4, 0, Math.PI * 2);
     ctx.fill();
@@ -739,14 +911,16 @@ function drawRana(
 
 function drawBarraTiempo(
   ctx: CanvasRenderingContext2D,
+  paleta: PaletaRanaria,
   tiempoMs: number,
   tiempoTotalMs: number,
 ) {
   const frac = Math.max(0, Math.min(1, tiempoMs / tiempoTotalMs));
   const bajo = tiempoMs <= 5000;
+  const color = bajo ? paleta.barraTiempoBajo : paleta.barraTiempo;
   ctx.save();
-  ctx.fillStyle = bajo ? COLORS.barraTiempoBajo : COLORS.barraTiempo;
-  ctx.shadowColor = ctx.fillStyle;
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
   ctx.shadowBlur = 8;
   ctx.fillRect(0, H - 6, W * frac, 6);
   ctx.restore();
@@ -754,9 +928,16 @@ function drawBarraTiempo(
 
 // ── Motor ─────────────────────────────────────────────────────────────────────
 
-export const createFroggerGame: GameFactory = (canvas, callbacks) => {
+export const createFroggerGame: GameFactory = (
+  canvas,
+  callbacks,
+  skin = "neon",
+) => {
   const context2d = canvas.getContext("2d");
   if (!context2d) throw new Error("RANARIA necesita un canvas 2D");
+  // La paleta se resuelve una vez y baja por argumento a cada función de dibujo:
+  // nada de esto puede vivir a nivel de módulo (invariante nº 1 del contrato).
+  const paleta = paletaDe(SKINS_RANARIA, skin);
   // Con tipo explícito: el estrechamiento del guard no llega hasta draw(), que es
   // un closure.
   const ctx: CanvasRenderingContext2D = context2d;
@@ -1070,11 +1251,12 @@ export const createFroggerGame: GameFactory = (canvas, callbacks) => {
   }
 
   function draw() {
-    drawEscenario(ctx);
-    drawNenufares(ctx, nenufares, reloj);
+    drawEscenario(ctx, paleta);
+    drawNenufares(ctx, paleta, nenufares, reloj);
 
     for (const carril of carriles) {
-      for (const movil of carril.moviles) drawMovil(ctx, carril, movil, reloj);
+      for (const movil of carril.moviles)
+        drawMovil(ctx, paleta, carril, movil, reloj);
     }
 
     // La posición dibujada interpola el salto, pero la lógica ya está resuelta en
@@ -1088,6 +1270,7 @@ export const createFroggerGame: GameFactory = (canvas, callbacks) => {
 
     drawRana(
       ctx,
+      paleta,
       xDibujo,
       filaY(filaDibujo),
       mirando,
@@ -1096,7 +1279,7 @@ export const createFroggerGame: GameFactory = (canvas, callbacks) => {
       reloj,
     );
 
-    drawBarraTiempo(ctx, tiempoMs, tiempoTotalMs);
+    drawBarraTiempo(ctx, paleta, tiempoMs, tiempoTotalMs);
   }
 
   function loop(ts: number) {

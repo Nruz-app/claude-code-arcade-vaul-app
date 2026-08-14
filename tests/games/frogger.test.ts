@@ -5,16 +5,23 @@
 
 import { describe, expect, it } from "vitest";
 
-import { H, W, createFroggerGame } from "@/app/lib/games/frogger";
+import {
+  H,
+  SKINS_RANARIA,
+  W,
+  createFroggerGame,
+} from "@/app/lib/games/frogger";
 
 import { vecesReproducido } from "../harness/audio";
 import { verificaContrato } from "../harness/contrato";
 import { montaMotor, pulsa } from "../harness/motor";
+import { verificaSkins } from "../harness/skins";
 
 const SFX_SALTO = "/rana-salto.mp3";
 const SFX_CHOQUE = "/rana-choque.mp3";
 
 verificaContrato("RANARIA", createFroggerGame);
+verificaSkins("RANARIA", createFroggerGame, SKINS_RANARIA);
 
 describe("RANARIA: resolución", () => {
   it("usa el canvas de 800×600 que fija el reproductor", () => {

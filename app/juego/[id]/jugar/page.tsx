@@ -10,8 +10,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { GAMES } from "../../../lib/data";
 import { useUser } from "../../../lib/user-context";
-import { GAME_CONTROLS, GAME_ENGINES } from "../../../lib/games/registry";
+import {
+  GAME_CONTROLS,
+  GAME_ENGINES,
+  GAME_PALETAS,
+} from "../../../lib/games/registry";
 import { saveGameSession, type SaveResult } from "../../../lib/game-sessions";
+import { SKINS } from "../../../lib/games/skins";
+import { useSkin } from "../../../lib/use-skin";
 import type { GameHandle, GameOverSummary } from "../../../lib/games/types";
 
 export default function GamePlayer() {
@@ -21,6 +27,11 @@ export default function GamePlayer() {
   const game = GAMES.find((g) => g.id === params.id);
 
   const engine = game ? GAME_ENGINES[game.id] : undefined;
+  // El selector solo se ofrece si el motor tiene paletas declaradas. Mientras
+  // no las tengan los cinco, enseñarlo en los demás sería ofrecer una opción
+  // que no cambia nada.
+  const tieneSkins = game ? !!GAME_PALETAS[game.id] : false;
+  const [skin, elegirSkin] = useSkin();
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const handleRef = useRef<GameHandle | null>(null);
@@ -66,28 +77,32 @@ export default function GamePlayer() {
     if (!engine || !canvas || !game) return;
     const gameId = game.id;
 
-    const handle = engine(canvas, {
-      onScore: setScore,
-      onLives: setLives,
-      onLevel: setEngineLevel,
-      onGameOver: (resumen) => {
-        summaryRef.current = resumen;
-        setScore(resumen.score);
-        setOver(true);
+    const handle = engine(
+      canvas,
+      {
+        onScore: setScore,
+        onLives: setLives,
+        onLevel: setEngineLevel,
+        onGameOver: (resumen) => {
+          summaryRef.current = resumen;
+          setScore(resumen.score);
+          setOver(true);
 
-        if (registradaRef.current) return;
-        registradaRef.current = true;
-        setCloudSave("saving");
-        // Sin await: el modal ya está abierto y no debe esperar a la red.
-        void saveGameSession({
-          gameId,
-          score: resumen.score,
-          level: resumen.level,
-          durationMs: resumen.durationMs,
-          reason: resumen.reason,
-        }).then(setCloudSave);
+          if (registradaRef.current) return;
+          registradaRef.current = true;
+          setCloudSave("saving");
+          // Sin await: el modal ya está abierto y no debe esperar a la red.
+          void saveGameSession({
+            gameId,
+            score: resumen.score,
+            level: resumen.level,
+            durationMs: resumen.durationMs,
+            reason: resumen.reason,
+          }).then(setCloudSave);
+        },
       },
-    });
+      skin,
+    );
     handleRef.current = handle;
     // No se arranca aquí: espera al overlay de inicio.
 
@@ -95,7 +110,15 @@ export default function GamePlayer() {
       handle.destroy();
       handleRef.current = null;
     };
-  }, [engine, game]);
+    // `skin` entra en las dependencias, así que cambiarlo destruye el motor y
+    // lo vuelve a crear. Es inofensivo porque el selector SOLO se renderiza
+    // dentro del overlay de arranque (`engine && !started && !over`), y ahí
+    // start() todavía no se ha llamado: no hay partida que reiniciar.
+    //
+    // Esa es la invariante que sostiene esta línea. Si alguna vez el selector
+    // sale del overlay —al HUD, a la pantalla de pausa—, cambiar de skin
+    // reiniciará la partida en curso, y no hay ninguna prueba que lo detecte.
+  }, [engine, game, skin]);
 
   const togglePause = useCallback(() => {
     const next = !paused;
@@ -115,6 +138,19 @@ export default function GamePlayer() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [engine, started]);
+
+  // Elegir aspecto con 1, 2 y 3, solo mientras el overlay está delante. Ningún
+  // motor escucha las teclas de dígito, así que no hay conflicto — pero este
+  // listener se retira igual en cuanto la partida arranca.
+  useEffect(() => {
+    if (!engine || !tieneSkins || started) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const i = SKINS.findIndex((_, n) => e.code === `Digit${n + 1}`);
+      if (i >= 0) elegirSkin(SKINS[i][0]);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [engine, tieneSkins, started, elegirSkin]);
 
   useEffect(() => {
     if (!engine || !started) return;
@@ -255,6 +291,22 @@ export default function GamePlayer() {
                     </div>
                   ))}
                 </div>
+                {tieneSkins && (
+                  <div className="game-skins">
+                    <div className="mono game-skins-label">ASPECTO</div>
+                    <div className="game-skins-opciones">
+                      {SKINS.map(([id, etiqueta], i) => (
+                        <button
+                          key={id}
+                          className={"btn" + (id === skin ? "" : " ghost")}
+                          onClick={() => elegirSkin(id)}
+                        >
+                          {i + 1} · {etiqueta}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
