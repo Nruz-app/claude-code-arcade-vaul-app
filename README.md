@@ -75,11 +75,17 @@ proyecto y no debe acabar en el repositorio.
 
 ### Base de datos
 
-El esquema vive en `supabase/migrations/`. Para recrearlo en un proyecto nuevo,
-aplica los archivos en orden de nombre. `20260809191140_profiles.sql` crea la
-tabla `public.profiles`, sus políticas RLS y el trigger `on_auth_user_created`,
-que es quien inserta el perfil al registrarse: la aplicación nunca hace `insert`
-sobre esa tabla.
+El esquema vive en `supabase/migrations/`, que es el histórico con el porqué de
+cada objeto. `20260809191140_profiles.sql` crea la tabla `public.profiles`, sus
+políticas RLS y el trigger `on_auth_user_created`, que es quien inserta el perfil
+al registrarse: la aplicación nunca hace `insert` sobre esa tabla.
+
+**Para recrear la base en un proyecto de Supabase nuevo** —porque el del plan
+gratuito se pausó, se borró, o porque acabas de clonar el repositorio— sigue el
+runbook de [`supabase/README.md`](supabase/README.md): son seis pasos, y el
+segundo es pegar `supabase/schema.sql` entero en el editor SQL del dashboard.
+`npm run db:check` dice si quedó bien y distingue «no se puede conectar» de
+«falta el esquema».
 
 En **Authentication → Sign In / Providers → Email**, la opción **Confirm email**
 debe estar **desactivada**. Con ella activada, `signUp` no devuelve sesión y el

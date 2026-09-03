@@ -10,7 +10,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "db:check": "node --env-file=.env scripts/db-check.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

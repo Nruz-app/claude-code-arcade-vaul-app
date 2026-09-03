@@ -8,9 +8,6 @@
 .playwright-mcp/*
 !.playwright-mcp/.gitkeep
 
-.env
-.env.example
-
 # dependencies
 /node_modules
 /.pnp
@@ -42,6 +39,9 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
+# El .env.example SÍ se versiona: es la plantilla que dice qué variables hacen
+# falta. Las dos líneas van en este orden a propósito — la reinclusión tiene que
+# ir después del patrón que la excluye, o no surte efecto.
 .env*
 !.env.example
 
@@ -57,3 +57,12 @@ next-env.d.ts
 
 # volcado que deja Git Bash al caerse; no es del proyecto
 bash.exe.stackdump
+
+# CLI de Supabase: lo genera `supabase link` y es local de cada máquina.
+# config.toml lleva dentro el project_ref, y versionarlo lo pondría en un cuarto
+# archivo — el runbook (supabase/README.md, paso 4) manda `supabase link
+# --project-ref` en su lugar justo para que la lista siga siendo de tres.
+# Lo que SÍ se versiona de supabase/ es migrations/, schema.sql y README.md.
+supabase/config.toml
+supabase/.branches/
+supabase/.temp/
