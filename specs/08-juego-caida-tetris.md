@@ -1,6 +1,6 @@
 # SPEC 08 — CAÍDA: el segundo juego real
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 05, SPEC 06
 > **Fecha:** 2026-08-12
 > **Objetivo:** Portar el Tetris de `references/templates/started-games/03-tetris/` a un motor TypeScript sobre canvas y registrarlo como el juego `caida`, sin tocar el reproductor ni el Salón de la Fama.

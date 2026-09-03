@@ -1,6 +1,6 @@
 # SPEC 02 — Landing y página Acerca de
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 01
 > **Fecha:** 2026-07-24
 > **Objetivo:** Portar la landing y la pantalla "Acerca de" de `references/templates/home-about/` a Next.js 16, moviendo la Biblioteca de `/` a `/biblioteca` para que `/` pase a ser la portada del sitio.

@@ -44,7 +44,7 @@ no colisiona con la numeración de `/spec` ni de `/nuevo-juego`.
 Lee, en este orden, antes de diseñar nada:
 
 1. `CLAUDE.md` — arquitectura y estado real del proyecto.
-2. `.claude/skills/nuevo-juego/contrato.md` — **las diez invariantes de un motor**. Son tu
+2. `.claude/skills/nuevo-juego/contrato.md` — **las once invariantes de un motor**. Son tu
    filtro técnico: un juego que no las respeta no es un juego que puedas especificar.
 3. `app/lib/games/types.ts` — el contrato literal (`GameFactory`, `GameHandle`,
    `GameCallbacks`, `GameOverSummary`).

@@ -1,6 +1,6 @@
 # SPEC 04 — Autenticación real con Supabase
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 01, SPEC 02
 > **Fecha:** 2026-08-09
 > **Objetivo:** Sustituir el login falso de `app/lib/user-context.tsx` por Supabase Auth con correo y contraseña, leyendo el nombre de jugador de la tabla `public.profiles` que ya existe en el proyecto remoto.

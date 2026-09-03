@@ -1,11 +1,12 @@
 # Reproduce el aviso sonoro de Claude Code (hooks Stop y Notification).
-# Se invoca desde .claude/settings.local.json. Nunca debe fallar ruidosamente:
-# si el audio no está disponible, el hook simplemente no suena.
+# Pensado para invocarse desde .claude/settings.local.json, que hoy NO lo
+# engancha a ningún hook: el script está listo pero inactivo. Nunca debe fallar
+# ruidosamente: si el audio no está disponible, el hook simplemente no suena.
 
 $ErrorActionPreference = 'Stop'
 
 try {
-    $mp3 = Join-Path $PSScriptRoot '..\references\templates\mp3\claudecode-finished.mp3'
+    $mp3 = Join-Path $PSScriptRoot '..\references\mp3\claudecode-finished.mp3'
     if (-not (Test-Path $mp3)) { exit 0 }
 
     Add-Type -AssemblyName presentationCore

@@ -650,6 +650,12 @@ export class Input {
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
     this.canvas.addEventListener("pointermove", this.onPointerMove);
+    // `pointerdown` con el mismo handler (SPEC 14). Con ratón sobra: el puntero
+    // ya está sobre el canvas y `pointermove` lo ha situado. Con un dedo no hay
+    // "estar encima" — el primer evento de un toque es `pointerdown`, y sin
+    // escucharlo la paleta no se mueve hasta que el dedo se desplaza unos
+    // píxeles. Tocar y no arrastrar es lo que hace cualquiera la primera vez.
+    this.canvas.addEventListener("pointerdown", this.onPointerMove);
     this.attached = true;
   }
 
@@ -657,6 +663,7 @@ export class Input {
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
+    this.canvas.removeEventListener("pointerdown", this.onPointerMove);
     this.attached = false;
     this.clear();
   }

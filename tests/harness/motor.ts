@@ -92,3 +92,26 @@ export function pulsa(code: string): KeyboardEvent {
   window.dispatchEvent(evento);
   return evento;
 }
+
+// La gemela de `pulsa()`: suelta la tecla. Hasta la SPEC 14 no hacía falta
+// porque las pruebas solo comprobaban qué pasa al pulsar, pero el mando táctil
+// despacha exactamente este par —`keydown` al apoyar el dedo, `keyup` al
+// levantarlo— y sin soltar, una tecla mantenida se queda pulsada para siempre:
+// la nave de ROCAS giraría sola hasta el final de la partida.
+export function suelta(code: string): KeyboardEvent {
+  const evento = new KeyboardEvent("keyup", {
+    code,
+    bubbles: true,
+    cancelable: true,
+  });
+  window.dispatchEvent(evento);
+  return evento;
+}
+
+// Una pulsación completa: apoyar y levantar. Es lo que hace un toque en un
+// botón del mando, y lo que basta para las acciones que el motor resuelve por
+// transición (girar en SERPENTINA, saltar en RANARIA, rotar en CAÍDA).
+export function toca(code: string): void {
+  pulsa(code);
+  suelta(code);
+}

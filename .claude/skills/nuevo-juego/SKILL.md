@@ -95,8 +95,9 @@ Estas categorías no son opcionales: cada una decide algo que el contrato obliga
   `level` de `game_sessions` y se ve en el Salón.
 - **Puntuación.** La tabla de puntos exacta. Es **el** dato del leaderboard: si las
   magnitudes se van de escala respecto a los otros juegos, el ranking global queda raro.
-- **Controles.** Las teclas exactas, que irán a `GAME_CONTROLS`. Avisa si el juego quiere
-  `Space`: el reproductor la usa para arrancar la partida desde el overlay.
+- **Controles.** Las teclas exactas, que irán a `GAME_CONTROLS` y a `GAME_TOUCH`. Avisa si
+  el juego quiere `Space`: el reproductor la usa para arrancar la partida desde el overlay,
+  y además es la tecla de los botones redondos del mando táctil.
 - **Fin de partida.** Qué la termina. Si el juego se puede **ganar** (Arkanoid al superar
   el último nivel), hay que mapearlo a `game_over`: `GameOverReason` solo admite
   `"game_over" | "surrender"` y ampliarlo obliga a migrar la restricción `check` de la
@@ -148,7 +149,7 @@ pide que se revise y se apruebe. No empieces a implementar.
 
 Solo tras aprobación explícita del usuario.
 
-**Antes de escribir una línea, lee `contrato.md`** (en esta misma carpeta): tiene las diez
+**Antes de escribir una línea, lee `contrato.md`** (en esta misma carpeta): tiene las once
 invariantes que hacen que un motor encaje, y el porqué de cada una. Casi todas existen
 para evitar un fallo concreto que ya se pagó portando ROCAS.
 
@@ -158,14 +159,21 @@ Orden de trabajo:
    portada `cover-*` en `app/globals.css`, siguiendo las que ya existen.
 2. **Assets a `public/`**, si los hay, y reescribe las rutas.
 3. **El motor** en `app/lib/games/<juego>.ts`, en los pasos que fijó la spec.
-4. **Registro**: una línea en `GAME_ENGINES` y otra en `GAME_CONTROLS`, las dos en
-   `app/lib/games/registry.ts`.
+4. **Registro**: cuatro entradas en `app/lib/games/registry.ts` — `GAME_ENGINES` (el
+   motor), `GAME_CONTROLS` (las teclas que anuncia el overlay), `GAME_PALETAS` (la ficha de
+   skins) y `GAME_TOUCH` (el mando táctil). `registry.test.ts` cruza las cuatro con
+   `GAME_ENGINES`, así que olvidar una falla en la suite y no en producción.
 5. **Pruebas** en `tests/games/<juego>.test.ts`. La suite compartida cubre las invariantes
    de `contrato.md`, así que hereda las 27 comprobaciones con una línea:
 
    ```ts
    import { verificaContrato } from "../harness/contrato";
+   import { verificaMando } from "../harness/mando";
+   import { verificaSkins } from "../harness/skins";
+
    verificaContrato("NOMBRE", createXGame);
+   verificaSkins("NOMBRE", createXGame, SKINS_X);
+   verificaMando("NOMBRE", "id-del-juego", createXGame);
    ```
 
    Añade después lo propio del juego, que es lo que la suite compartida no puede saber:

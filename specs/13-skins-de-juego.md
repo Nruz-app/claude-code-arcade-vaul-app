@@ -1,6 +1,6 @@
 # SPEC 13 — SKINS: el mismo juego, otra época
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 05, SPEC 06, SPEC 08, SPEC 09, SPEC 10
 > **Fecha:** 2026-08-14
 > **Objetivo:** que los cinco juegos con motor real puedan verse con tres aspectos —`neon`, `retro` y `clasico`—, elegibles por el jugador, con la garantía de que cada paleta se lee sobre el fondo oscuro del portal y de que quien no elige nada ve exactamente lo de siempre.

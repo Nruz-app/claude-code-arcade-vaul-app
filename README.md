@@ -27,8 +27,8 @@ En cualquiera de los cinco juegos reales: la partida no arranca hasta pulsar
 **ESPACIO** en el overlay, `ESC` pausa y reanuda, y cambiar de pestaña pausa
 solo. Los controles de cada uno los anuncia el propio overlay.
 
-**RANARIA**, el más reciente, es el único con sonido: suenan el salto y el
-atropello, y nada más. Cruzas cinco carriles de coches y cuatro de río saltando
+**RANARIA**, el más reciente, es uno de los dos juegos con sonido —el otro es
+BLOQUE BUSTER—: suenan el salto y el atropello, y nada más. Cruzas cinco carriles de coches y cuatro de río saltando
 con las flechas o WASD; en el agua solo sobrevives encima de un tronco o de una
 tortuga, y las tortugas se sumergen cada pocos segundos avisando con un
 parpadeo. Cada intento corre contra un temporizador que también cuesta una vida
@@ -93,12 +93,14 @@ Basado en /spec y /spec-impl
 Siguiendo las buenas practicas recomendadas aquí:
 https://github.com/Klerith/fernando-skills
 
-Las specs viven en `specs/`, numeradas. Las once están implementadas: las
+Las specs viven en `specs/`, numeradas. Las catorce están implementadas: las
 pantallas del MVP (01), la landing y "Acerca de" (02), correcciones de layout
 (03), la autenticación con Supabase (04), ROCAS (05), el registro de partidas
 (06), el Salón de la Fama real (07), CAÍDA (08), BLOQUE BUSTER (09), SERPENTINA
-(10) y el sonido de RANARIA (11). Cada una lleva una sección de **Decisiones**
-que explica por qué las cosas quedaron así y qué se descartó.
+(10), el sonido de RANARIA (11), el de BLOQUE BUSTER (12), las skins (13) y el
+mando táctil (14). Cada
+una lleva una sección de **Decisiones** que explica por qué las cosas quedaron
+así y qué se descartó.
 
 Aparte de las numeradas está `specs/game-jam/`, una carpeta por juego con la
 spec repartida en seis archivos. La escribe un subagente a partir de un tema
@@ -117,11 +119,13 @@ es texto libre en `game_sessions` y las pestañas del Salón salen del catálogo
    `app/lib/games/types.ts`: recibe un canvas y cuatro callbacks
    (`onScore`, `onLives`, `onLevel`, `onGameOver`) y devuelve un mando con
    `start`, `pause`, `resume`, `end` y `destroy`.
-2. Se registra en `app/lib/games/registry.ts`: una línea en `GAME_ENGINES` y
-   otra en `GAME_CONTROLS` con las teclas que anunciará el overlay.
+2. Se registra en `app/lib/games/registry.ts`: una línea en `GAME_ENGINES`, otra
+   en `GAME_CONTROLS` con las teclas que anunciará el overlay y otra en
+   `GAME_PALETAS` con su ficha de skins.
 3. Se le añade `tests/games/<juego>.test.ts`. Las invariantes comunes ya están
    escritas como suite compartida, así que una línea —
    `verificaContrato("NOMBRE", createXGame)`— hereda las 27 comprobaciones, y
+   otra —`verificaSkins("NOMBRE", createXGame, SKINS_X)`— las de las paletas;
    encima va solo lo propio del juego.
 
 Los assets (sprites, hojas de imágenes, mp3) van a `public/` y se referencian

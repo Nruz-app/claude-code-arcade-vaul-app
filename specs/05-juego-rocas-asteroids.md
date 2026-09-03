@@ -1,6 +1,6 @@
 # SPEC 05 — ROCAS: el primer juego real
 
-> **Estado:** Aprovado
+> **Estado:** Implementado
 > **Depende de:** SPEC 01
 > **Fecha:** 2026-08-09
 > **Objetivo:** Portar el Asteroids de `references/templates/started-games/02-asteroids/` a un motor TypeScript sobre canvas y montarlo en `/juego/rocas/jugar`, dejando el reproductor simulado para los otros siete juegos.

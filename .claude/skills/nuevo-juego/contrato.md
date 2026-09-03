@@ -50,7 +50,7 @@ el bucle**: eso lo hace `start()`.
 
 ---
 
-## Las diez invariantes
+## Las once invariantes
 
 ### 1. Nada de estado a nivel de módulo
 
@@ -112,6 +112,14 @@ Copia el patrón de la clase `Input` de `asteroids.ts`:
   Con un método, `removeEventListener` recibe otra referencia y el listener no se quita.
 - `attach()` idempotente (`if (this.attached) return;`).
 - Listeners en `window`, no en el canvas: así no hace falta que el canvas tenga el foco.
+  Desde la SPEC 14 esto tiene un segundo motivo, más fuerte: **el mando táctil despacha
+  `KeyboardEvent` sobre `window`**, así que un motor que escuchara el canvas se quedaría sin
+  controles en el teléfono.
+- **No dependas del auto-repeat del sistema.** Si una tecla mantenida tiene que repetir,
+  genera tú la cadencia (el DAS de `tetris.ts` es el modelo) y descarta los `keydown` con
+  `e.repeat`. Además de que la cadencia del sistema depende de cada máquina, el mando táctil
+  manda **un solo** `keydown` al apoyar el dedo: un motor que espere repeticiones del sistema
+  se mueve una vez y se queda quieto con el botón pulsado.
 - `preventDefault` **solo** sobre las teclas del juego y **solo** mientras el motor está
   enganchado. Si no, el juego bloquea el scroll de la página fuera de la partida.
 - Distingue tecla mantenida (`isHeld`) de pulsación única (`wasPressed`, que se consume al
@@ -217,6 +225,38 @@ Reskinear un motor es trabajo del subagente `skin-designer`.
 
 ---
 
+### 11. Se juega con el dedo
+
+Un motor no está terminado hasta que se puede jugar en un teléfono. No hay nada que
+implementar dentro del motor —el mando vive en `app/components/mando-tactil.tsx` y despacha
+las mismas teclas que ya escuchas—, pero sí hay que **declarar el mando** en `GAME_TOUCH`
+(`registry.ts`), junto a `GAME_ENGINES`, `GAME_CONTROLS` y `GAME_PALETAS`:
+
+```ts
+export const GAME_TOUCH: Partial<Record<string, MandoDeJuego>> = {
+  serpentina: {
+    cruceta: {
+      izquierda: { code: "ArrowLeft", accion: "Girar a la izquierda" },
+      // …solo las direcciones que el juego use: las filas vacías de la rejilla
+      // se colapsan, así que un juego de dos botones no deja hueco.
+    },
+    acciones: [], // los redondos: { code, accion, etiqueta, tono }
+  },
+};
+```
+
+Tres reglas:
+
+1. **El `code` es el que ya escucha tu `Input`**, no uno nuevo. El mando no tiene vocabulario
+   propio; declarar `"ArrowLef"` da un botón que se dibuja y no hace nada, y ni el compilador
+   ni la pantalla de un escritorio lo detectan.
+2. **No declares `Space` si el motor no lo usa dentro de la partida.** Es la tecla que abre
+   la partida desde el overlay, y dejarla libre es lo que evita tener que blindar el motor
+   contra esa pulsación (lo decidieron BLOQUE BUSTER, SERPENTINA y RANARIA).
+3. **`arrastre: true` solo si el motor escucha el puntero del canvas.** Hoy solo lo hace
+   BLOQUE BUSTER, y hay una prueba que lo afirma: declararlo en otro juego dibuja una promesa
+   que el motor no cumple.
+
 ## Esqueleto de archivo
 
 El orden de secciones de `asteroids.ts`, con banners `// ── Nombre ───`:
@@ -263,6 +303,15 @@ exactamente lo mismo que montarlo con `"neon"`:
 ```ts
 import { verificaSkins } from "../harness/skins";
 verificaSkins("SERPENTINA", createSnakeGame, SKINS_SERPENTINA);
+```
+
+La nº 11 tiene la tercera suite compartida, que se hereda igual y comprueba que cada `code`
+declarado lo escucha el motor de verdad, que machacar el mando entero no termine la partida,
+que `destroy()` deje de escuchar sus teclas y que soltar con la partida en pausa no rompa nada:
+
+```ts
+import { verificaMando } from "../harness/mando";
+verificaMando("SERPENTINA", "serpentina", createSnakeGame);
 ```
 
 Lo que **no** puede cubrir, y sigue siendo cosa tuya: la resolución 800×600 (nº 3, es una

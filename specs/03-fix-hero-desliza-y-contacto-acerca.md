@@ -1,6 +1,6 @@
 # SPEC 03 — Correcciones de layout del hero y visibilidad de contacto
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 02
 > **Fecha:** 2026-07-24
 > **Objetivo:** Corregir dos defectos visuales heredados de SPEC 02 — el indicador "DESLIZA" del hero de `/` que se solapa con los botones CTA, y el formulario de contacto de `/acerca` que queda invisible al cargar por depender del efecto `reveal`.

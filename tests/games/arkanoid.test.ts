@@ -12,12 +12,15 @@ import {
   SKINS_BLOQUE_BUSTER,
   W,
   createArkanoidGame,
+  Input,
   stepBall,
 } from "@/app/lib/games/arkanoid";
 
 import { vecesPausado, vecesReproducido } from "../harness/audio";
+import { creaCanvas } from "../harness/canvas";
 import { verificaContrato } from "../harness/contrato";
-import { montaMotor } from "../harness/motor";
+import { verificaMando } from "../harness/mando";
+import { montaMotor, pulsa, suelta } from "../harness/motor";
 import { verificaSkins } from "../harness/skins";
 
 const SFX_REBOTE = "/bloque-rebote.mp3";
@@ -25,6 +28,7 @@ const SFX_ROMPER = "/bloque-romper.mp3";
 
 verificaContrato("BLOQUE BUSTER", createArkanoidGame);
 verificaSkins("BLOQUE BUSTER", createArkanoidGame, SKINS_BLOQUE_BUSTER);
+verificaMando("BLOQUE BUSTER", "bloque-buster", createArkanoidGame);
 
 describe("BLOQUE BUSTER: resolución", () => {
   it("usa el canvas de 800×600 que fija el reproductor", () => {
@@ -126,19 +130,71 @@ describe("BLOQUE BUSTER: sonido", () => {
   });
 });
 
-describe("BLOQUE BUSTER: ratón", () => {
-  it("destroy() suelta también el listener de puntero del canvas", () => {
+describe("BLOQUE BUSTER: ratón y dedo", () => {
+  it("destroy() suelta los DOS listeners de puntero del canvas", () => {
     const m = montaMotor(createArkanoidGame);
     m.handle.start();
     m.handle.destroy();
 
-    // Si el listener siguiera puesto escribiría en el closure de un motor ya
+    // Si alguno siguiera puesto escribiría en el closure de un motor ya
     // destruido. No debe ni lanzar ni reaccionar.
-    expect(() => {
-      m.canvas.dispatchEvent(
-        new MouseEvent("pointermove", { clientX: 400, bubbles: true }),
-      );
-    }).not.toThrow();
+    for (const tipo of ["pointermove", "pointerdown"]) {
+      expect(() => {
+        m.canvas.dispatchEvent(
+          new MouseEvent(tipo, { clientX: 400, bubbles: true }),
+        );
+      }, `${tipo} sigue enganchado tras destroy()`).not.toThrow();
+    }
     expect(m.reloj.pendientes).toBe(0);
+  });
+
+  it("un toque sin arrastrar coloca la paleta (SPEC 14)", () => {
+    // Con ratón `pointermove` basta: el puntero ya está sobre el canvas. Con un
+    // dedo no existe "estar encima", así que el primer evento de un toque es
+    // `pointerdown`; sin escucharlo, tocar la pantalla no movía la paleta hasta
+    // que el dedo se desplazaba unos píxeles.
+    const canvas = creaCanvas();
+    // jsdom no maqueta, así que devuelve un rect de ancho 0 y el handler se
+    // cortaría en su propia guardia. Con un rect real se puede comprobar además
+    // la conversión de píxeles de pantalla a la resolución lógica del canvas.
+    canvas.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 400, height: 300 }) as DOMRect;
+
+    const input = new Input(canvas);
+    input.attach();
+
+    expect(input.takePointerX()).toBeNull(); // nada tocado todavía
+
+    canvas.dispatchEvent(
+      new MouseEvent("pointerdown", { clientX: 200, bubbles: true }),
+    );
+
+    // El canvas se enseña a 400 px de ancho y trabaja a 800: la mitad de la
+    // pantalla es la mitad del mundo del juego.
+    expect(input.takePointerX()).toBe(W / 2);
+    input.detach();
+  });
+});
+
+describe("BLOQUE BUSTER: el mando mantiene y suelta", () => {
+  it("una tecla mantenida deja de estarlo al soltarla", () => {
+    // Esto es el contrato exacto del mando táctil: `pointerdown` despacha
+    // keydown y `pointerup` despacha keyup. Sin la segunda mitad, apoyar el
+    // dedo en un botón lo dejaría pulsado para siempre.
+    const input = new Input(creaCanvas());
+    input.attach();
+
+    for (const code of ["ArrowLeft", "ArrowRight"]) {
+      pulsa(code);
+      expect(input.isHeld(code), `${code} no se registró como pulsada`).toBe(
+        true,
+      );
+      suelta(code);
+      expect(input.isHeld(code), `${code} se quedó pulsada al soltarla`).toBe(
+        false,
+      );
+    }
+
+    input.detach();
   });
 });

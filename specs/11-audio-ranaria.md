@@ -1,6 +1,6 @@
 # SPEC 11 — Sonido en RANARIA: el salto y el atropello
 
-> **Estado:** Borrador
+> **Estado:** Implementado
 > **Depende de:** SPEC 05, SPEC 06, spec de la jam `specs/game-jam/ranaria/`
 > **Fecha:** 2026-08-13
 > **Objetivo:** Dar sonido a las dos acciones que definen RANARIA —saltar y morir atropellado— reproduciendo desde el motor los dos efectos ya ajustados (`public/rana-salto.mp3` y `public/rana-choque.mp3`), sin tocar el reproductor, el contrato `GameHandle` ni Supabase, y dejando un helper mínimo (`app/lib/games/audio.ts`) sobre el que los siguientes juegos puedan poner efectos.

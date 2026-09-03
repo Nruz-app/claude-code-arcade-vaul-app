@@ -14,7 +14,9 @@ import {
   GAME_CONTROLS,
   GAME_ENGINES,
   GAME_PALETAS,
+  GAME_TOUCH,
 } from "../../../lib/games/registry";
+import MandoTactil from "../../../components/mando-tactil";
 import { saveGameSession, type SaveResult } from "../../../lib/game-sessions";
 import { SKINS } from "../../../lib/games/skins";
 import { useSkin } from "../../../lib/use-skin";
@@ -31,6 +33,9 @@ export default function GamePlayer() {
   // no las tengan los cinco, enseñarlo en los demás sería ofrecer una opción
   // que no cambia nada.
   const tieneSkins = game ? !!GAME_PALETAS[game.id] : false;
+  // El mando táctil del juego, si lo tiene. Solo se dibuja en aparatos de
+  // puntero grueso; de eso se encarga el CSS, no este componente.
+  const mando = game ? GAME_TOUCH[game.id] : undefined;
   const [skin, elegirSkin] = useSkin();
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -221,10 +226,13 @@ export default function GamePlayer() {
   return (
     <div className="av-player fade-in">
       <div className="player-hud">
-        <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+        {/* Una clase y no un estilo inline: en móvil este bloque pasa a ser una
+            rejilla de cuatro columnas, y un estilo inline gana a cualquier
+            media query. Sin este cambio, el HUD compacto no se puede escribir. */}
+        <div className="hud-stats">
           <div className="hud-stat">
             <div className="l">Jugador</div>
-            <div className="v" style={{ color: "var(--ink)" }}>
+            <div className="v hud-nombre" style={{ color: "var(--ink)" }}>
               {name}
             </div>
           </div>
@@ -276,13 +284,22 @@ export default function GamePlayer() {
             </div>
           )}
           {engine && !started && !over && (
+            // Tocar el fondo arranca: en un teléfono no hay ESPACIO que pulsar.
+            // El botón de abajo es el objetivo explícito; esto es la comodidad.
             <div
               className="crt-content game-start"
               style={{ background: "rgba(0,0,0,0.72)", zIndex: 6 }}
+              onClick={() => setStarted(true)}
             >
               <div>
-                <div className="pixel neon-cyan" style={{ fontSize: 20 }}>
+                {/* Los dos textos se renderizan siempre y el CSS enseña el que
+                    toca según el puntero. Detectarlo en cliente desajustaría la
+                    hidratación, que es lo que use-skin.ts ya se cuidó de evitar. */}
+                <div className="pixel neon-cyan game-start-teclado">
                   PULSA ESPACIO PARA EMPEZAR
+                </div>
+                <div className="pixel neon-cyan game-start-tactil">
+                  TOCA PARA EMPEZAR
                 </div>
                 <div className="game-controls mono">
                   {(GAME_CONTROLS[game.id] ?? []).map(([tecla, accion]) => (
@@ -292,7 +309,13 @@ export default function GamePlayer() {
                   ))}
                 </div>
                 {tieneSkins && (
-                  <div className="game-skins">
+                  // stopPropagation, o elegir un aspecto arrancaría la partida:
+                  // el clic subiría hasta el fondo del overlay. Es la trampa que
+                  // la SPEC 14 señaló como la más fácil de este paso.
+                  <div
+                    className="game-skins"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="mono game-skins-label">ASPECTO</div>
                     <div className="game-skins-opciones">
                       {SKINS.map(([id, etiqueta], i) => (
@@ -307,6 +330,7 @@ export default function GamePlayer() {
                     </div>
                   </div>
                 )}
+                <button className="btn yellow game-start-btn">EMPEZAR</button>
               </div>
             </div>
           )}
@@ -341,12 +365,11 @@ export default function GamePlayer() {
         </div>
       </div>
 
-      {engine && (
-        <div className="game-keyboard-note">
-          {game.title} SE JUEGA CON TECLADO. CONÉCTATE DESDE UN ORDENADOR PARA
-          JUGAR.
-        </div>
-      )}
+      {/* El mando solo mientras se juega. Antes de arrancar no hay nada que
+          controlar, y al terminar se desmonta —soltando lo que quedara apoyado,
+          que es justo el caso para el que su cleanup existe: perder la última
+          vida con el dedo en un botón y que el modal tape el mando. */}
+      {mando && started && !over && <MandoTactil mando={mando} />}
 
       {over && (
         <div className="modal-bd">

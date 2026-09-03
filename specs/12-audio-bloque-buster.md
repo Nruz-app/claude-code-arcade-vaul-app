@@ -1,6 +1,6 @@
 # SPEC 12 — Sonido en BLOQUE BUSTER: el rebote y el ladrillo
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 09, SPEC 11
 > **Fecha:** 2026-08-13
 > **Objetivo:** Dar sonido a las dos acciones que definen BLOQUE BUSTER —rebotar y romper un bloque— reproduciendo desde el motor los dos efectos de `references/mp3/` una vez ajustados a `public/`, reusando `crearSfx()` tal cual y sin tocar el reproductor, el contrato `GameHandle`, el helper de audio ni Supabase.

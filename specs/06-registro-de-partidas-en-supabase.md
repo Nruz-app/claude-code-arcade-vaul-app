@@ -1,6 +1,6 @@
 # SPEC 06 — Registro de partidas en Supabase
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 04, SPEC 05
 > **Fecha:** 2026-08-09
 > **Objetivo:** Grabar en Supabase cada partida terminada de ROCAS —puntuación, nivel, duración y desenlace— en una tabla `game_sessions` ligada al usuario autenticado.

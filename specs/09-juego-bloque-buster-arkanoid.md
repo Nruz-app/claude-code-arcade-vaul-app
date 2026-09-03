@@ -1,6 +1,6 @@
 # SPEC 09 — BLOQUE BUSTER: el tercer juego real
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 05, SPEC 06, SPEC 08
 > **Fecha:** 2026-08-12
 > **Objetivo:** Portar el Arkanoid de `references/templates/started-games/04-arkanoid/` a un motor TypeScript sobre canvas y registrarlo como el juego `bloque-buster`, sin tocar el reproductor, el contrato ni Supabase.

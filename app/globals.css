@@ -1021,10 +1021,26 @@ a {
   margin-bottom: 18px;
   flex-wrap: wrap;
 }
+/* Las cuatro estadísticas. Vivía como estilo inline en el JSX del reproductor
+   hasta la SPEC 14; se sacó a una clase porque un estilo inline no lo puede
+   sobrescribir una media query, y en móvil este bloque cambia de reparto. */
+.hud-stats {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
 .hud-stat {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+}
+/* El nombre admite 10 caracteres. Sin esto desborda sobre la celda de al lado
+   en cuanto el HUD se estrecha. */
+.hud-nombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .hud-stat .l {
   font-family: var(--mono);
@@ -1153,6 +1169,15 @@ a {
   display: block;
   width: 100%;
   height: 100%;
+  /* BLOQUE BUSTER se juega arrastrando el dedo por aquí. Sin ceder el gesto, el
+     navegador lo interpreta como scroll —o como pull-to-refresh— y la paleta no
+     se mueve. Va en el canvas y no en `.av-player` a propósito: el resto de la
+     página tiene que seguir haciendo scroll, o en un teléfono pequeño el botón
+     SALIR queda fuera de alcance. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .game-controls {
   display: grid;
@@ -1190,22 +1215,308 @@ a {
   font-size: 9px;
   padding: 8px 12px;
 }
-/* Los juegos con motor real se juegan con teclado. En pantallas pequeñas se
-   avisa en vez de dejar al jugador delante de una partida que no responde. */
-.game-keyboard-note {
+/* Overlay de arranque. Hasta la SPEC 14 solo decía "PULSA ESPACIO", que en un
+   teléfono es una instrucción imposible. Ahora se renderizan los dos textos y
+   aquí se elige el que corresponde al puntero: hacerlo en JavaScript obligaría
+   a detectar el aparato en cliente y desajustaría la hidratación. */
+.game-start-teclado {
+  font-size: 20px;
+}
+.game-start-tactil,
+.game-start-btn {
   display: none;
 }
-@media (max-width: 720px) {
-  .game-keyboard-note {
+.game-start {
+  /* Tocar el fondo del overlay arranca la partida, así que el texto no debe
+     poder seleccionarse ni dejar el destello azul del navegador. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (pointer: coarse) {
+  .game-start-teclado {
+    display: none;
+  }
+  .game-start-tactil {
     display: block;
-    margin-top: 14px;
-    padding: 10px 12px;
-    border: 1px solid var(--magenta);
-    color: var(--magenta);
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: 0.1em;
-    text-align: center;
+    font-size: 18px;
+  }
+  /* El objetivo explícito. Tocar el fondo también vale, pero un botón se ve. */
+  .game-start-btn {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 14px 28px;
+    min-height: 48px;
+  }
+}
+
+/* ===== mando táctil (SPEC 14) ===== */
+/* Portado de references/gamepad-assets/gamepad.html, que ya usa los tokens del
+   portal. Tres cambios respecto al original: los botones se generan desde
+   GAME_TOUCH en vez de estar escritos a mano (un juego dibuja solo los que
+   usa), los objetivos táctiles suben a 56px, y el mando aparece por capacidad
+   del puntero y no por ancho de ventana. */
+
+/* Escondido por defecto. Aparece con `pointer: coarse` —el puntero principal es
+   un dedo—, que es la pregunta correcta: no "cuánto mides" sino "con qué
+   señalas". Un portátil táctil con ratón no lo ve; una tablet grande sí. */
+.mando {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .mando {
+    display: grid;
+    grid-template-columns: auto auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    margin-top: 16px;
+    padding: 20px 22px;
+    background: linear-gradient(180deg, #1c1c28 0%, #0c0c14 100%);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    position: relative;
+    box-shadow:
+      0 30px 80px -30px rgba(0, 245, 255, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      inset 0 -2px 0 rgba(0, 0, 0, 0.6);
+    /* Lo que impide que jugar mueva la página: sin esto, arrastrar el pulgar
+       desde un botón hace scroll, y machacar botones selecciona texto y deja el
+       destello azul del navegador. */
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mando::before {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border: 1px solid rgba(0, 245, 255, 0.14);
+    border-radius: 18px;
+    pointer-events: none;
+  }
+  .mando::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(
+      rgba(255, 255, 255, 0.03) 1px,
+      transparent 1px
+    );
+    background-size: 8px 8px;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0.6;
+  }
+}
+
+/* La cruceta, en rejilla de 3×3. Es lo que permite que un juego dibuje solo los
+   botones que usa sin dejar hueco: las filas de `grid-template-rows: auto` sin
+   contenido se colapsan a cero, así que BLOQUE BUSTER —que solo va de lado— no
+   reserva el alto de una cruceta entera, y ROCAS —que no baja— no deja un
+   agujero abajo. Con posiciones absolutas ese ajuste habría que hacerlo a mano
+   para cada combinación. */
+.mando-cruceta {
+  display: grid;
+  grid-template-columns: repeat(3, 56px);
+  grid-template-rows: auto auto auto;
+  gap: 4px;
+  justify-items: center;
+  align-items: center;
+}
+.mando-dir {
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  background: linear-gradient(180deg, #1a1a25, #0a0a12);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  color: var(--ink-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 4px 0 #050507,
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.6);
+  transition:
+    transform 80ms,
+    box-shadow 140ms,
+    color 140ms,
+    border-color 140ms,
+    background 140ms;
+}
+.mando-flecha {
+  width: 24px;
+  height: 24px;
+  transition: filter 140ms;
+}
+.mando-dir:active {
+  transform: translateY(3px);
+  color: var(--cyan);
+  background: linear-gradient(180deg, #08161e, #030a0e);
+  border-color: var(--cyan);
+  box-shadow:
+    0 1px 0 #050507,
+    inset 0 0 16px rgba(0, 245, 255, 0.45),
+    0 0 16px rgba(0, 245, 255, 0.5);
+}
+.mando-dir:active .mando-flecha {
+  filter: drop-shadow(0 0 6px var(--cyan)) drop-shadow(0 0 12px var(--cyan));
+}
+.mando-arriba {
+  grid-area: 1 / 2;
+}
+.mando-izquierda {
+  grid-area: 2 / 1;
+}
+.mando-derecha {
+  grid-area: 2 / 3;
+}
+.mando-abajo {
+  grid-area: 3 / 2;
+}
+.mando-hub {
+  grid-area: 2 / 2;
+  width: 56px;
+  height: 56px;
+  background: radial-gradient(circle at 50% 50%, #181822 0%, #08080d 80%);
+  border: 1px solid rgba(0, 245, 255, 0.15);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    inset 0 0 12px rgba(0, 0, 0, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  pointer-events: none;
+}
+.mando-gema {
+  width: 12px;
+  height: 12px;
+  background: var(--cyan);
+  box-shadow:
+    0 0 10px var(--cyan),
+    inset 0 0 4px rgba(0, 0, 0, 0.5);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  animation: mando-led 2s ease-in-out infinite;
+}
+@keyframes mando-led {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+}
+
+/* Los botones redondos. Un juego puede no tener ninguno (SERPENTINA, RANARIA y
+   BLOQUE BUSTER no usan ESPACIO dentro de la partida). */
+.mando-acciones {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  justify-self: end;
+}
+.mando-accion {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  background:
+    radial-gradient(
+      circle at 32% 26%,
+      rgba(255, 255, 255, 0.25),
+      transparent 50%
+    ),
+    radial-gradient(circle at 50% 55%, var(--ab-mid), var(--ab-deep) 75%);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 6px 0 #050507,
+    0 0 22px var(--ab-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.4);
+  transition:
+    transform 80ms,
+    box-shadow 140ms;
+}
+.mando-magenta {
+  color: var(--magenta);
+  --ab-mid: rgba(255, 0, 110, 0.7);
+  --ab-deep: rgba(110, 0, 40, 0.95);
+  --ab-glow: rgba(255, 0, 110, 0.4);
+}
+.mando-cyan {
+  color: var(--cyan);
+  --ab-mid: rgba(0, 200, 230, 0.7);
+  --ab-deep: rgba(0, 50, 70, 0.95);
+  --ab-glow: rgba(0, 245, 255, 0.4);
+}
+.mando-letra {
+  font-family: var(--pixel);
+  font-size: 22px;
+  color: #fff;
+  letter-spacing: 0.02em;
+  text-shadow:
+    0 0 8px currentColor,
+    0 0 18px currentColor,
+    0 1px 0 rgba(0, 0, 0, 0.6);
+  position: relative;
+  z-index: 2;
+}
+.mando-aro {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 1px dashed currentColor;
+  opacity: 0;
+  transition:
+    opacity 140ms,
+    transform 200ms;
+}
+.mando-accion:active {
+  transform: translateY(4px) scale(0.97);
+  box-shadow:
+    0 1px 0 #050507,
+    0 0 36px var(--ab-glow),
+    inset 0 0 18px rgba(0, 0, 0, 0.5);
+}
+.mando-accion:active .mando-aro {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+/* Solo BLOQUE BUSTER: su control natural es arrastrar por el canvas, y sin
+   decirlo no hay forma de descubrirlo. */
+.mando-pista {
+  font-size: 9px;
+  line-height: 1.7;
+  color: var(--ink-faint);
+  letter-spacing: 0.16em;
+  text-align: right;
+}
+
+/* Teléfonos estrechos: el mando entero se encoge, pero ningún objetivo baja de
+   56px, que es el mínimo que fija la SPEC 14. */
+@media (pointer: coarse) and (max-width: 420px) {
+  .mando {
+    padding: 14px 12px;
+    gap: 10px;
+    border-radius: 16px;
+  }
+  .mando-acciones {
+    gap: 12px;
+  }
+  .mando-accion {
+    width: 68px;
+    height: 68px;
   }
 }
 
@@ -1774,6 +2085,47 @@ a {
   }
   .av-player {
     padding: 0 16px 32px;
+  }
+
+  /* HUD compacto (SPEC 14). En un teléfono el `flex-wrap` repartía las cuatro
+     estadísticas y los tres botones en tres renglones, con los valores montados
+     sobre las etiquetas. Aquí el HUD pasa a ser una pila de dos bloques a todo
+     el ancho: una rejilla fija de cuatro columnas y una fila de botones.
+
+     El umbral es por ANCHO y no por `pointer: coarse` como el mando, y es
+     deliberado: esto se descuadra porque la ventana es estrecha, cosa que pasa
+     igual en un escritorio con la ventana a medias. El mando depende de con qué
+     se señala; el HUD, de cuánto se mide. */
+  .player-hud {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+  .hud-stats {
+    /* Rejilla y no `flex-wrap`: reparte el ancho a partes iguales en vez de
+       envolver cuando no cabe. */
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .hud-stat .l {
+    font-size: 8px;
+    letter-spacing: 0.08em;
+  }
+  .hud-stat .v {
+    font-size: 12px;
+  }
+  .hud-actions {
+    /* Los tres a lo ancho, con alto suficiente para ser objetivo táctil. */
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .hud-actions .btn {
+    min-height: 44px;
+    padding: 10px 6px;
+    font-size: 9px;
   }
 }
 

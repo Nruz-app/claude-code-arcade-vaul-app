@@ -1,6 +1,6 @@
 # SPEC 07 — Salón de la Fama con datos reales
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 04, SPEC 06
 > **Fecha:** 2026-08-09
 > **Objetivo:** Sustituir los rankings inventados de `/salon` por el Salón de la Fama real, leyendo la mejor marca de cada jugador desde una vista `game_leaderboard` sobre `game_sessions`.

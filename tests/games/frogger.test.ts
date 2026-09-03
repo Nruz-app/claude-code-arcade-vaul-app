@@ -14,7 +14,8 @@ import {
 
 import { vecesReproducido } from "../harness/audio";
 import { verificaContrato } from "../harness/contrato";
-import { montaMotor, pulsa } from "../harness/motor";
+import { verificaMando } from "../harness/mando";
+import { montaMotor, pulsa, suelta } from "../harness/motor";
 import { verificaSkins } from "../harness/skins";
 
 const SFX_SALTO = "/rana-salto.mp3";
@@ -22,6 +23,7 @@ const SFX_CHOQUE = "/rana-choque.mp3";
 
 verificaContrato("RANARIA", createFroggerGame);
 verificaSkins("RANARIA", createFroggerGame, SKINS_RANARIA);
+verificaMando("RANARIA", "ranaria", createFroggerGame);
 
 describe("RANARIA: resolución", () => {
   it("usa el canvas de 800×600 que fija el reproductor", () => {
@@ -86,6 +88,25 @@ describe("RANARIA: sonido del atropello", () => {
     expect(m.vidas.at(-1)).toBe(2);
     expect(vecesReproducido(SFX_CHOQUE)).toBe(0);
     expect(vecesReproducido(SFX_SALTO)).toBe(0);
+    m.handle.destroy();
+  });
+});
+
+describe("RANARIA: el mando salta", () => {
+  it("cada botón de la cruceta que mueve a la rana suena", () => {
+    // El efecto observable de RANARIA es su sonido, que es como ya lo comprueba
+    // el resto de este archivo. Tres de las cuatro direcciones mueven a la rana
+    // desde la orilla de salida; ArrowDown no, porque debajo no hay fila.
+    const m = montaMotor(createFroggerGame);
+    m.handle.start();
+
+    for (const code of ["ArrowLeft", "ArrowRight", "ArrowUp"]) {
+      pulsa(code);
+      suelta(code);
+      m.reloj.avanza(8); // la interpolación del salto dura 90 ms
+    }
+
+    expect(vecesReproducido(SFX_SALTO)).toBe(3);
     m.handle.destroy();
   });
 });

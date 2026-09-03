@@ -9,11 +9,13 @@ import { describe, expect, it } from "vitest";
 import { H, SKINS_SERPENTINA, W, createSnakeGame } from "@/app/lib/games/snake";
 
 import { verificaContrato } from "../harness/contrato";
-import { montaMotor } from "../harness/motor";
+import { verificaMando } from "../harness/mando";
+import { montaMotor, pulsa } from "../harness/motor";
 import { verificaSkins } from "../harness/skins";
 
 verificaContrato("SERPENTINA", createSnakeGame);
 verificaSkins("SERPENTINA", createSnakeGame, SKINS_SERPENTINA);
+verificaMando("SERPENTINA", "serpentina", createSnakeGame);
 
 describe("SERPENTINA: resolución", () => {
   it("usa el canvas de 800×600 que fija el reproductor", () => {
@@ -42,5 +44,44 @@ describe("SERPENTINA: sprite de las frutas", () => {
     m.handle.start();
     expect(() => m.reloj.avanza(300)).not.toThrow();
     m.handle.destroy();
+  });
+});
+
+describe("SERPENTINA: el mando gira la serpiente", () => {
+  // Cuántos fotogramas tarda la partida en acabarse contra una pared, girando
+  // antes hacia `code` o sin girar. La serpiente arranca en el centro (col 16
+  // de 32, fila 12 de 24) mirando a la derecha, así que el techo está más cerca
+  // que la pared derecha: girar hacia arriba tiene que acortar la partida.
+  function fotogramasHastaElFinal(code?: string): number {
+    const m = montaMotor(createSnakeGame);
+    m.handle.start();
+    if (code) pulsa(code);
+
+    let n = 0;
+    while (m.finales.length === 0 && n < 400) {
+      m.reloj.avanza(1);
+      n++;
+    }
+    m.handle.destroy();
+    return n;
+  }
+
+  it("girar hacia arriba estrella la serpiente antes que seguir recto", () => {
+    // Si el giro no llegara al motor, las dos partidas durarían lo mismo: la
+    // serpiente seguiría hacia la derecha en los dos casos.
+    const recto = fotogramasHastaElFinal();
+    const arriba = fotogramasHastaElFinal("ArrowUp");
+
+    expect(recto).toBeLessThan(400); // la partida termina sola, sin girar
+    expect(arriba).toBeLessThan(recto);
+  });
+
+  it("un giro imposible se descarta, como con el teclado", () => {
+    // La serpiente arranca hacia la derecha, así que ArrowLeft es una reversa
+    // y el motor la descarta: la partida tiene que durar exactamente lo mismo
+    // que sin tocar nada. Prueba que el mando no se salta las reglas del
+    // motor —despacha la misma tecla y pasa por el mismo `Input`—, no solo que
+    // "algo llega".
+    expect(fotogramasHastaElFinal("ArrowLeft")).toBe(fotogramasHastaElFinal());
   });
 });

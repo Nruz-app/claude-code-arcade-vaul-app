@@ -1,6 +1,6 @@
 # SPEC 10 — SERPENTINA: el cuarto juego real
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 05, SPEC 06, SPEC 08
 > **Fecha:** 2026-08-12
 > **Objetivo:** Escribir desde cero un motor de Snake en TypeScript sobre canvas, con las frutas del atlas de `references/templates/snake-assets/`, y registrarlo como el juego `serpentina` sin tocar el reproductor ni el Salón de la Fama.
