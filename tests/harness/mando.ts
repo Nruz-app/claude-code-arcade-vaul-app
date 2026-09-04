@@ -19,19 +19,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  GAME_TOUCH,
-  type BotonTactil,
-  type MandoDeJuego,
-} from "@/app/lib/games/registry";
+import { GAME_TOUCH, botonesDelMando } from "@/app/lib/games/registry";
 import type { GameFactory } from "@/app/lib/games/types";
 
 import { montaMotor, pulsa, suelta } from "./motor";
-
-// Todos los botones del mando en una lista: la cruceta y las acciones juntas.
-export function botonesDelMando(mando: MandoDeJuego): BotonTactil[] {
-  return [...Object.values(mando.cruceta), ...mando.acciones];
-}
 
 export function verificaMando(
   nombre: string,

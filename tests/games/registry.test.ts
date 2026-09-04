@@ -13,8 +13,9 @@ import {
   GAME_ENGINES,
   GAME_PALETAS,
   GAME_TOUCH,
-  type BotonTactil,
-  type MandoDeJuego,
+  accionEnSlot,
+  botonesDelMando as botonesDe,
+  type SlotDeAccion,
 } from "@/app/lib/games/registry";
 
 import { creaCanvas } from "../harness/canvas";
@@ -23,12 +24,8 @@ import { creaEspias } from "../harness/motor";
 const idsDelCatalogo = new Set(GAMES.map((g) => g.id));
 const idsConMotor = Object.keys(GAME_ENGINES);
 
-// Todos los botones de un mando en una lista: la cruceta y las acciones juntas.
-// Casi todas las comprobaciones de abajo son sobre el mando entero, no sobre
-// una mitad.
-function botonesDe(mando: MandoDeJuego): BotonTactil[] {
-  return [...Object.values(mando.cruceta), ...mando.acciones];
-}
+// Los dos huecos de botón redondo, en el orden en que se dibujan.
+const SLOTS: readonly SlotDeAccion[] = ["B", "A"];
 
 describe("registro de motores", () => {
   it("hay motores registrados", () => {
@@ -175,11 +172,49 @@ describe("registro de mandos táctiles", () => {
 
   it.each(idsConMotor)("«%s» etiqueta sus botones de acción", (id) => {
     for (const boton of GAME_TOUCH[id]!.acciones) {
-      // La cruceta saca su flecha de la dirección; los redondos se dibujan con
-      // una letra, así que sin etiqueta salen vacíos.
-      expect(boton.etiqueta.trim()).not.toBe("");
-      expect(["cyan", "magenta"]).toContain(boton.tono);
+      // La cruceta saca su flecha de la dirección; los redondos se dibujan en
+      // uno de los dos huecos fijos del mando, y la etiqueta es la que dice en
+      // cuál. El color ya no se declara: lo pone el hueco (SPEC 16).
+      expect(SLOTS).toContain(boton.etiqueta);
     }
+  });
+
+  it.each(idsConMotor)("«%s» no pone dos botones en el mismo hueco", (id) => {
+    // El mando tiene dos huecos y los dibuja los dos siempre. Dos botones con
+    // la misma etiqueta no se apilan: el segundo desaparece, porque
+    // accionEnSlot() devuelve el primero que encuentra. Sería un control
+    // declarado que no existe en pantalla.
+    const etiquetas = GAME_TOUCH[id]!.acciones.map((b) => b.etiqueta);
+    expect(new Set(etiquetas).size, `${id} repite un hueco de acción`).toBe(
+      etiquetas.length,
+    );
+  });
+
+  it.each(idsConMotor)("«%s» reparte sus acciones por hueco", (id) => {
+    const mando = GAME_TOUCH[id]!;
+    // accionEnSlot() es lo que usa el componente para decidir qué dibuja en
+    // cada hueco y cuál sale como carcasa apagada. Lo que tiene que cumplir es
+    // ser una partición: cada acción declarada aparece en su hueco, y ningún
+    // hueco se inventa una que no está.
+    const repartidas = SLOTS.map((slot) => accionEnSlot(mando, slot)).filter(
+      (boton) => boton !== undefined,
+    );
+    expect(repartidas).toHaveLength(mando.acciones.length);
+
+    for (const slot of SLOTS) {
+      const boton = accionEnSlot(mando, slot);
+      if (boton) expect(boton.etiqueta).toBe(slot);
+    }
+  });
+
+  it("un hueco sin declarar no devuelve botón", () => {
+    // Tres de los cinco juegos no tienen ninguna acción, y ROCAS y CAÍDA solo
+    // ocupan el hueco A. `undefined` ahí no es un fallo: es lo que el
+    // componente lee como «dibuja la carcasa».
+    expect(accionEnSlot(GAME_TOUCH.rocas!, "B")).toBeUndefined();
+    expect(accionEnSlot(GAME_TOUCH.rocas!, "A")?.code).toBe("Space");
+    expect(accionEnSlot(GAME_TOUCH.serpentina!, "A")).toBeUndefined();
+    expect(accionEnSlot(GAME_TOUCH.serpentina!, "B")).toBeUndefined();
   });
 
   it("solo BLOQUE BUSTER se juega arrastrando", () => {

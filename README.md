@@ -99,12 +99,13 @@ Basado en /spec y /spec-impl
 Siguiendo las buenas practicas recomendadas aquí:
 https://github.com/Klerith/fernando-skills
 
-Las specs viven en `specs/`, numeradas. Las catorce están implementadas: las
+Las specs viven en `specs/`, numeradas. Las diecisiete están implementadas: las
 pantallas del MVP (01), la landing y "Acerca de" (02), correcciones de layout
 (03), la autenticación con Supabase (04), ROCAS (05), el registro de partidas
 (06), el Salón de la Fama real (07), CAÍDA (08), BLOQUE BUSTER (09), SERPENTINA
-(10), el sonido de RANARIA (11), el de BLOQUE BUSTER (12), las skins (13) y el
-mando táctil (14). Cada
+(10), el sonido de RANARIA (11), el de BLOQUE BUSTER (12), las skins (13), el
+mando táctil (14), el esquema portátil de Supabase (15), la apariencia del
+gamepad (16) y la consola con los controles a los lados (17). Cada
 una lleva una sección de **Decisiones** que explica por qué las cosas quedaron
 así y qué se descartó.
 

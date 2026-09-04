@@ -16,7 +16,7 @@ import {
   GAME_PALETAS,
   GAME_TOUCH,
 } from "../../../lib/games/registry";
-import MandoTactil from "../../../components/mando-tactil";
+import { MandoAcciones, MandoCruceta } from "../../../components/mando-tactil";
 import { saveGameSession, type SaveResult } from "../../../lib/game-sessions";
 import { SKINS } from "../../../lib/games/skins";
 import { useSkin } from "../../../lib/use-skin";
@@ -265,111 +265,135 @@ export default function GamePlayer() {
         </div>
       </div>
 
-      <div className="crt">
-        <div className="crt-screen">
-          {engine ? (
-            <canvas
-              ref={canvasRef}
-              className="game-canvas"
-              width={800}
-              height={600}
-            />
-          ) : (
-            <div className="game-arena">
-              <div className="grid-floor"></div>
-              <div className="enemy e1"></div>
-              <div className="enemy e2"></div>
-              <div className="enemy e3"></div>
-              <div className="player-ship"></div>
-            </div>
-          )}
-          {engine && !started && !over && (
-            // Tocar el fondo arranca: en un teléfono no hay ESPACIO que pulsar.
-            // El botón de abajo es el objetivo explícito; esto es la comodidad.
-            <div
-              className="crt-content game-start"
-              style={{ background: "rgba(0,0,0,0.72)", zIndex: 6 }}
-              onClick={() => setStarted(true)}
-            >
-              <div>
-                {/* Los dos textos se renderizan siempre y el CSS enseña el que
+      {/* El chasis (SPEC 17): cruceta, pantalla y botones bajo un mismo marco.
+          Lo dibujan los ocho juegos; los tres sin motor lo enseñan con los
+          costados lisos, porque dos marcos distintos según el juego se leen
+          como un error y una carcasa sin botones no.
+
+          Los controles solo mientras se juega. Antes de arrancar no hay nada
+          que controlar, y al terminar se desmontan —soltando lo que quedara
+          apoyado, que es justo el caso para el que su cleanup existe: perder la
+          última vida con el dedo en un botón y que el modal tape el mando. */}
+      <div className="consola">
+        <div className="consola-lado consola-izq">
+          {mando && started && !over && <MandoCruceta mando={mando} />}
+        </div>
+
+        <div className="consola-centro">
+          <div className="crt">
+            <div className="crt-screen">
+              {engine ? (
+                <canvas
+                  ref={canvasRef}
+                  className="game-canvas"
+                  width={800}
+                  height={600}
+                />
+              ) : (
+                <div className="game-arena">
+                  <div className="grid-floor"></div>
+                  <div className="enemy e1"></div>
+                  <div className="enemy e2"></div>
+                  <div className="enemy e3"></div>
+                  <div className="player-ship"></div>
+                </div>
+              )}
+              {engine && !started && !over && (
+                // Tocar el fondo arranca: en un teléfono no hay ESPACIO que pulsar.
+                // El botón de abajo es el objetivo explícito; esto es la comodidad.
+                <div
+                  className="crt-content game-start"
+                  style={{ background: "rgba(0,0,0,0.72)", zIndex: 6 }}
+                  onClick={() => setStarted(true)}
+                >
+                  <div>
+                    {/* Los dos textos se renderizan siempre y el CSS enseña el que
                     toca según el puntero. Detectarlo en cliente desajustaría la
                     hidratación, que es lo que use-skin.ts ya se cuidó de evitar. */}
-                <div className="pixel neon-cyan game-start-teclado">
-                  PULSA ESPACIO PARA EMPEZAR
-                </div>
-                <div className="pixel neon-cyan game-start-tactil">
-                  TOCA PARA EMPEZAR
-                </div>
-                <div className="game-controls mono">
-                  {(GAME_CONTROLS[game.id] ?? []).map(([tecla, accion]) => (
-                    <div key={tecla}>
-                      <span>{tecla}</span> {accion}
+                    <div className="pixel neon-cyan game-start-teclado">
+                      PULSA ESPACIO PARA EMPEZAR
                     </div>
-                  ))}
-                </div>
-                {tieneSkins && (
-                  // stopPropagation, o elegir un aspecto arrancaría la partida:
-                  // el clic subiría hasta el fondo del overlay. Es la trampa que
-                  // la SPEC 14 señaló como la más fácil de este paso.
-                  <div
-                    className="game-skins"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="mono game-skins-label">ASPECTO</div>
-                    <div className="game-skins-opciones">
-                      {SKINS.map(([id, etiqueta], i) => (
-                        <button
-                          key={id}
-                          className={"btn" + (id === skin ? "" : " ghost")}
-                          onClick={() => elegirSkin(id)}
-                        >
-                          {i + 1} · {etiqueta}
-                        </button>
+                    <div className="pixel neon-cyan game-start-tactil">
+                      TOCA PARA EMPEZAR
+                    </div>
+                    <div className="game-controls mono">
+                      {(GAME_CONTROLS[game.id] ?? []).map(([tecla, accion]) => (
+                        <div key={tecla}>
+                          <span>{tecla}</span> {accion}
+                        </div>
                       ))}
                     </div>
+                    {tieneSkins && (
+                      // stopPropagation, o elegir un aspecto arrancaría la partida:
+                      // el clic subiría hasta el fondo del overlay. Es la trampa que
+                      // la SPEC 14 señaló como la más fácil de este paso.
+                      <div
+                        className="game-skins"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="mono game-skins-label">ASPECTO</div>
+                        <div className="game-skins-opciones">
+                          {SKINS.map(([id, etiqueta], i) => (
+                            <button
+                              key={id}
+                              className={"btn" + (id === skin ? "" : " ghost")}
+                              onClick={() => elegirSkin(id)}
+                            >
+                              {i + 1} · {etiqueta}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <button className="btn yellow game-start-btn">
+                      EMPEZAR
+                    </button>
                   </div>
-                )}
-                <button className="btn yellow game-start-btn">EMPEZAR</button>
-              </div>
-            </div>
-          )}
-          {paused && (
-            <div
-              className="crt-content"
-              style={{ background: "rgba(0,0,0,0.6)", zIndex: 5 }}
-            >
-              <div>
-                <div className="pixel neon-yellow" style={{ fontSize: 22 }}>
-                  EN PAUSA
                 </div>
+              )}
+              {paused && (
                 <div
-                  className="mono"
-                  style={{
-                    fontSize: 11,
-                    color: "var(--ink-dim)",
-                    marginTop: 10,
-                    letterSpacing: "0.16em",
-                  }}
+                  className="crt-content"
+                  style={{ background: "rgba(0,0,0,0.6)", zIndex: 5 }}
                 >
-                  PULSA REANUDAR PARA CONTINUAR
+                  <div>
+                    <div className="pixel neon-yellow" style={{ fontSize: 22 }}>
+                      EN PAUSA
+                    </div>
+                    <div
+                      className="mono"
+                      style={{
+                        fontSize: 11,
+                        color: "var(--ink-dim)",
+                        marginTop: 10,
+                        letterSpacing: "0.16em",
+                      }}
+                    >
+                      PULSA REANUDAR PARA CONTINUAR
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
-          )}
+            <div className="crt-bottom">
+              <span className="led">SEÑAL OK</span>
+              <span>{game.title} · CRT-83 · 60 HZ</span>
+              <span>CARGA · 1MB</span>
+            </div>
+          </div>
         </div>
-        <div className="crt-bottom">
-          <span className="led">SEÑAL OK</span>
-          <span>{game.title} · CRT-83 · 60 HZ</span>
-          <span>CARGA · 1MB</span>
+
+        <div className="consola-lado consola-der">
+          {mando && started && !over && <MandoAcciones mando={mando} />}
         </div>
       </div>
 
-      {/* El mando solo mientras se juega. Antes de arrancar no hay nada que
-          controlar, y al terminar se desmonta —soltando lo que quedara apoyado,
-          que es justo el caso para el que su cleanup existe: perder la última
-          vida con el dedo en un botón y que el modal tape el mando. */}
-      {mando && started && !over && <MandoTactil mando={mando} />}
+      {/* BLOQUE BUSTER se juega sobre todo arrastrando por la pantalla, y eso no
+          hay forma de descubrirlo si nadie lo dice. Va bajo el chasis: dentro no
+          cabe, y ni la referencia ni una consola de verdad llevan texto ahí. */}
+      {mando?.arrastre && started && !over && (
+        <div className="mando-pista mono">ARRASTRA EN LA PANTALLA</div>
+      )}
 
       {over && (
         <div className="modal-bd">

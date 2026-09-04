@@ -1251,85 +1251,138 @@ a {
   }
 }
 
-/* ===== mando táctil (SPEC 14) ===== */
-/* Portado de references/gamepad-assets/gamepad.html, que ya usa los tokens del
-   portal. Tres cambios respecto al original: los botones se generan desde
-   GAME_TOUCH en vez de estar escritos a mano (un juego dibuja solo los que
-   usa), los objetivos táctiles suben a 56px, y el mando aparece por capacidad
-   del puntero y no por ancho de ventana. */
+/* ===== consola (SPEC 17) · mando GAMEPAD MK-II (SPEC 14, 16) ===== */
+/* El chasis: cruceta a la izquierda, pantalla en medio, botones a la derecha,
+   todo dentro de un mismo marco. Es lo que convierte el reproductor en una
+   consola — una pantalla con un mando debajo es un ordenador.
 
-/* Escondido por defecto. Aparece con `pointer: coarse` —el puntero principal es
-   un dedo—, que es la pregunta correcta: no "cuánto mides" sino "con qué
-   señalas". Un portátil táctil con ratón no lo ve; una tablet grande sí. */
-.mando {
-  display: none;
+   El marco de aquí no es nuevo: es exactamente el que la SPEC 16 le había dado
+   a `.mando` —borde, las cuatro capas de sombra, el filo interior del ::before y
+   la trama de puntos del ::after—, que se retira porque ahora solo puede haber
+   un marco y es este. Los controles, en cambio, no cambian ni un píxel: siguen
+   siendo los de la SPEC 16 y se portan de `references/gamepad-assets/`
+   `gamepad-cruceta.html` y `gamepad-botones.html`.
+
+   La rejilla es `auto 1fr auto`: los costados miden lo que miden sus controles y
+   el centro se queda con el resto, que es lo que hace que la pantalla se ajuste
+   sola sin ninguna cuenta escrita a mano. */
+.consola {
+  /* La geometría de la SPEC 16, aquí porque las dos mitades la heredan. Antes
+     vivía en `.mando`, que ya no existe. */
+  --mando-dir: 50px;
+  --mando-hueco: 3px;
+  --mando-accion: 74px;
+  --mando-sep: 22px;
+  --mando-flecha: 22px;
+
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 20px;
+  padding: 24px;
+  background: linear-gradient(180deg, #1c1c28 0%, #0c0c14 100%);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow:
+    0 30px 80px -30px rgba(0, 245, 255, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.02),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.6);
 }
 
+/* Con el dedo, todo sube al mínimo de 56 px de la SPEC 14. */
 @media (pointer: coarse) {
-  .mando {
-    display: grid;
-    grid-template-columns: auto auto;
-    align-items: center;
-    justify-content: space-between;
-    gap: 18px;
-    margin-top: 16px;
-    padding: 20px 22px;
-    background: linear-gradient(180deg, #1c1c28 0%, #0c0c14 100%);
-    border: 1px solid var(--line);
-    border-radius: 22px;
-    position: relative;
-    box-shadow:
-      0 30px 80px -30px rgba(0, 245, 255, 0.4),
-      inset 0 1px 0 rgba(255, 255, 255, 0.06),
-      inset 0 -2px 0 rgba(0, 0, 0, 0.6);
-    /* Lo que impide que jugar mueva la página: sin esto, arrastrar el pulgar
-       desde un botón hace scroll, y machacar botones selecciona texto y deja el
-       destello azul del navegador. */
-    touch-action: none;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .mando::before {
-    content: "";
-    position: absolute;
-    inset: 4px;
-    border: 1px solid rgba(0, 245, 255, 0.14);
-    border-radius: 18px;
-    pointer-events: none;
-  }
-  .mando::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background-image: radial-gradient(
-      rgba(255, 255, 255, 0.03) 1px,
-      transparent 1px
-    );
-    background-size: 8px 8px;
-    border-radius: inherit;
-    pointer-events: none;
-    opacity: 0.6;
+  .consola {
+    --mando-dir: 56px;
+    --mando-accion: 76px;
+    --mando-flecha: 24px;
   }
 }
 
-/* La cruceta, en rejilla de 3×3. Es lo que permite que un juego dibuje solo los
-   botones que usa sin dejar hueco: las filas de `grid-template-rows: auto` sin
-   contenido se colapsan a cero, así que BLOQUE BUSTER —que solo va de lado— no
-   reserva el alto de una cruceta entera, y ROCAS —que no baja— no deja un
-   agujero abajo. Con posiciones absolutas ese ajuste habría que hacerlo a mano
-   para cada combinación. */
+.consola::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(0, 245, 255, 0.14);
+  border-radius: 18px;
+  pointer-events: none;
+}
+.consola::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    rgba(255, 255, 255, 0.03) 1px,
+    transparent 1px
+  );
+  background-size: 8px 8px;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* Los tres huecos van por encima de la trama del ::after, que es el último hijo
+   de la caja y si no se pintaría sobre la pantalla. */
+.consola-lado,
+.consola-centro {
+  position: relative;
+  z-index: 1;
+}
+
+.consola-lado {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Lo que impide que jugar mueva la página: sin esto, arrastrar el pulgar desde
+     un botón hace scroll, y machacar botones selecciona texto y deja el destello
+     azul del navegador. Va en los costados y NO en el chasis entero: sobre la
+     pantalla, que es lo más grande que hay, el dedo tiene que poder desplazar la
+     página como en cualquier otro sitio. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Los costados miden lo que miden sus controles SIEMPRE, los dibujen o no.
+   Sin esto la rejilla les da cero ancho mientras están vacíos y la pantalla se
+   encoge de golpe al pulsar EMPEZAR, que es el peor momento posible para que el
+   reproductor dé un salto. Y es además lo que hace que los tres juegos sin motor
+   enseñen carcasa a los lados en vez de un chasis sin costados.
+
+   Los dos anchos son las mismas cuentas de la SPEC 16, no números copiados:
+   156/174 px la cruceta y 170/174 px los botones, según se señale con ratón o
+   con el dedo. */
+.consola-izq {
+  min-width: calc(var(--mando-dir) * 3 + var(--mando-hueco) * 2);
+}
+.consola-der {
+  min-width: calc(var(--mando-accion) * 2 + var(--mando-sep));
+}
+
+/* Sin esto la rejilla se niega a encoger el CRT por debajo de su contenido —un
+   elemento de rejilla tiene `min-width: auto`— y el chasis desborda en vez de
+   ceder. Es una línea, y es la que hace que «la pantalla se ajuste al tamaño».
+   Su ausencia se diagnostica mal: parece que la pantalla no reacciona al ancho
+   cuando lo que pasa es que se lo está llevando todo. */
+.consola-centro {
+  min-width: 0;
+}
+/* La cruceta, en rejilla 3×3 de filas y columnas FIJAS. Que sean fijas y no
+   `auto` es lo que hace el «marco fijo, hueco vacío» de la SPEC 16: ROCAS no usa
+   «abajo» y BLOQUE BUSTER solo va de lado, y aun así los tres dibujan una cruz
+   del mismo tamaño. Con `auto`, la fila sin botón se colapsaba y el mando
+   cambiaba de forma de un juego a otro. */
 .mando-cruceta {
   display: grid;
-  grid-template-columns: repeat(3, 56px);
-  grid-template-rows: auto auto auto;
-  gap: 4px;
-  justify-items: center;
-  align-items: center;
+  grid-template-columns: repeat(3, var(--mando-dir));
+  grid-template-rows: repeat(3, var(--mando-dir));
+  gap: var(--mando-hueco);
 }
 .mando-dir {
-  width: 56px;
-  height: 56px;
+  width: var(--mando-dir);
+  height: var(--mando-dir);
   padding: 0;
   background: linear-gradient(180deg, #1a1a25, #0a0a12);
   border: 1px solid rgba(255, 255, 255, 0.05);
@@ -1351,10 +1404,16 @@ a {
     background 140ms;
 }
 .mando-flecha {
-  width: 24px;
-  height: 24px;
+  width: var(--mando-flecha);
+  height: var(--mando-flecha);
   transition: filter 140ms;
 }
+
+/* `.on` es el eco del teclado físico: lo pone el componente cuando llega el
+   `keydown` de la tecla que ese botón despacha. Comparte declaración con
+   `:active` a propósito — tocar el botón y pulsar su tecla son la misma cosa
+   vista desde el motor, así que se ven igual. */
+.mando-dir.on,
 .mando-dir:active {
   transform: translateY(3px);
   color: var(--cyan);
@@ -1365,9 +1424,22 @@ a {
     inset 0 0 16px rgba(0, 245, 255, 0.45),
     0 0 16px rgba(0, 245, 255, 0.5);
 }
+.mando-dir.on .mando-flecha,
 .mando-dir:active .mando-flecha {
   filter: drop-shadow(0 0 6px var(--cyan)) drop-shadow(0 0 12px var(--cyan));
 }
+
+/* El :hover va guardado, que es el único sitio donde esta hoja mejora a la
+   referencia: en táctil, un :hover sin guardia se queda PEGADO en el último
+   botón tocado hasta que se toca otro, y el mando acabaría con un botón cian
+   encendido que nadie está pulsando. */
+@media (hover: hover) {
+  .mando-dir:hover {
+    color: var(--cyan);
+    border-color: rgba(0, 245, 255, 0.35);
+  }
+}
+
 .mando-arriba {
   grid-area: 1 / 2;
 }
@@ -1382,8 +1454,8 @@ a {
 }
 .mando-hub {
   grid-area: 2 / 2;
-  width: 56px;
-  height: 56px;
+  width: var(--mando-dir);
+  height: var(--mando-dir);
   background: radial-gradient(circle at 50% 50%, #181822 0%, #08080d 80%);
   border: 1px solid rgba(0, 245, 255, 0.15);
   border-radius: 6px;
@@ -1412,18 +1484,20 @@ a {
   }
 }
 
-/* Los botones redondos. Un juego puede no tener ninguno (SERPENTINA, RANARIA y
-   BLOQUE BUSTER no usan ESPACIO dentro de la partida). */
+/* Los dos botones redondos, siempre los dos: B a la izquierda y A a la derecha,
+   como en el PNG. El hueco que el juego no declara sale apagado (`.inerte`).
+   La asimetría con la cruceta —donde el botón que sobra no se dibuja— es
+   deliberada: un hueco vacío a la derecha del mando no se lee como «este juego
+   no dispara», se lee como un mando roto. */
 .mando-acciones {
   display: flex;
   align-items: center;
-  gap: 18px;
-  justify-self: end;
+  gap: var(--mando-sep);
 }
 .mando-accion {
   position: relative;
-  width: 76px;
-  height: 76px;
+  width: var(--mando-accion);
+  height: var(--mando-accion);
   padding: 0;
   border-radius: 50%;
   border: 2px solid currentColor;
@@ -1447,17 +1521,28 @@ a {
     transform 80ms,
     box-shadow 140ms;
 }
-.mando-magenta {
+/* El color lo pone el hueco, no el registro: B es cian y A magenta, siempre.
+   Por eso `tono` desapareció de BotonAccion en la SPEC 16. */
+.mando-a {
   color: var(--magenta);
   --ab-mid: rgba(255, 0, 110, 0.7);
   --ab-deep: rgba(110, 0, 40, 0.95);
   --ab-glow: rgba(255, 0, 110, 0.4);
 }
-.mando-cyan {
+.mando-b {
   color: var(--cyan);
   --ab-mid: rgba(0, 200, 230, 0.7);
   --ab-deep: rgba(0, 50, 70, 0.95);
   --ab-glow: rgba(0, 245, 255, 0.4);
+}
+/* Carcasa: se ve, no se toca. `pointer-events: none` es el cinturón sobre los
+   tirantes —el componente ya no le cuelga manejadores ni lo deja activo—, para
+   que no haya forma de que un botón que no existe se encienda. */
+.mando-accion.inerte {
+  opacity: 0.32;
+  filter: saturate(0.45);
+  cursor: default;
+  pointer-events: none;
 }
 .mando-letra {
   font-family: var(--pixel);
@@ -1481,6 +1566,12 @@ a {
     opacity 140ms,
     transform 200ms;
 }
+@media (hover: hover) {
+  .mando-accion:hover .mando-aro {
+    opacity: 0.45;
+  }
+}
+.mando-accion.on,
 .mando-accion:active {
   transform: translateY(4px) scale(0.97);
   box-shadow:
@@ -1488,35 +1579,84 @@ a {
     0 0 36px var(--ab-glow),
     inset 0 0 18px rgba(0, 0, 0, 0.5);
 }
+.mando-accion.on .mando-aro,
 .mando-accion:active .mando-aro {
   opacity: 1;
   transform: scale(1.08);
 }
 
 /* Solo BLOQUE BUSTER: su control natural es arrastrar por el canvas, y sin
-   decirlo no hay forma de descubrirlo. */
+   decirlo no hay forma de descubrirlo. Desde la SPEC 16 va bajo el marco, que
+   es el único sitio donde cabe sin meter texto dentro del gamepad. */
 .mando-pista {
   font-size: 9px;
   line-height: 1.7;
   color: var(--ink-faint);
   letter-spacing: 0.16em;
-  text-align: right;
+  text-align: center;
 }
 
-/* Teléfonos estrechos: el mando entero se encoge, pero ningún objetivo baja de
-   56px, que es el mínimo que fija la SPEC 14. */
+/* ── Disposición apilada (SPEC 17) ──────────────────────────────────────────
+   Por debajo de 900 px la pantalla bajaría de 438 px de ancho y jugar deja de
+   ser cómodo, así que el chasis se rompe en filas: pantalla arriba a todo el
+   ancho, controles debajo.
+
+   Es `flex` con `wrap` y no una rejilla de áreas a propósito. Con áreas, la
+   fila de controles tiene dos columnas fijas y en cuanto la cruceta y los
+   botones no caben juntos se salen del chasis; envolviendo, la mitad que no
+   entra pasa sola a la fila siguiente y sigue centrada. Eso es lo que sostiene
+   los teléfonos estrechos sin un tercer corte: con el dedo, las dos mitades
+   suman 342 px (174 de cruceta, 152 de botones y 16 de separación) y el hueco
+   del chasis es el ancho de la ventana menos 62, así que se apilan solas por
+   debajo de 400 px exactos. Medido: a 400 van en fila, a 399 apiladas — que es
+   justo donde la spec dijo que había que apilarlas.
+
+   El corte es 899.98 y no 900 porque la spec cuenta 900 px como el último ancho
+   de consola: ahí la pantalla mide justo 438×328, que es el mínimo que se
+   consideró jugable y el motivo de que el corte esté donde está. Con
+   `max-width: 900px` ese ancho ya saldría apilado y la medida no existiría. */
+@media (max-width: 899.98px) {
+  .consola {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 16px;
+  }
+  /* La pantalla, primera y a todo el ancho. El orden del DOM la deja en medio
+     —es donde va en escritorio— y aquí no se puede reordenar el JSX sin partir
+     el chasis en dos árboles distintos. */
+  .consola-centro {
+    order: -1;
+    flex: 1 1 100%;
+  }
+  /* Se reparten la fila a partes iguales y cada una centra lo suyo, así que el
+     conjunto queda simétrico tanto si caben las dos como si cada una se lleva
+     su renglón. */
+  .consola-lado {
+    flex: 1 1 auto;
+  }
+  /* Un costado sin controles no debe dejar una fila muerta bajo la pantalla:
+     aquí ya no es carcasa que se vea, es aire. Pasa en los tres juegos sin
+     motor y en los cinco con motor antes de arrancar. */
+  .consola-lado:empty {
+    display: none;
+  }
+}
+
+/* Teléfonos estrechos: el chasis aprieta y los botones bajan a los 68 px que
+   fijó la SPEC 16, que siguen por encima del mínimo de 56. No es cosmética —es
+   lo que mantiene la cruceta y los botones lado a lado en la franja de 400 a
+   420 px, donde con 76 px ya no caben juntos. */
 @media (pointer: coarse) and (max-width: 420px) {
-  .mando {
-    padding: 14px 12px;
-    gap: 10px;
+  .consola {
+    --mando-accion: 68px;
+    --mando-sep: 16px;
+    gap: 12px;
+    padding: 14px;
     border-radius: 16px;
   }
-  .mando-acciones {
-    gap: 12px;
-  }
-  .mando-accion {
-    width: 68px;
-    height: 68px;
+  .consola::before {
+    border-radius: 12px;
   }
 }
 

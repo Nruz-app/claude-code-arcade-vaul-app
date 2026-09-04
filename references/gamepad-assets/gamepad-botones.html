@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Arcade Vault — Botones MK-II</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<!--
+  La mitad derecha del GAMEPAD MK-II: solo los botones redondos.
+
+  Sale de `gamepad.html`, que sigue ahí y documenta el mando entero. Se parte en
+  dos (SPEC 17) porque en la app las dos mitades dejan de compartir marco: la
+  cruceta va a un costado de la pantalla y los botones al otro, dentro de un
+  chasis único que hace de consola.
+
+  Los dos huecos se dibujan SIEMPRE, tenga el juego uno, ninguno o los dos: el
+  que nadie declara sale como carcasa apagada (`.inerte`). Un hueco vacío no se
+  lee como «este juego no dispara», se lee como un mando roto. El segundo botón
+  de esta página está inerte justo para enseñar ese estado.
+-->
+<style>
+:root {
+  --bg: #0a0a0f;
+  --ink: #e6e9ff;
+  --cyan: #00f5ff;
+  --magenta: #ff006e;
+  --line: rgba(0, 245, 255, 0.18);
+  --pixel: "Press Start 2P", system-ui, monospace;
+  --mono: "JetBrains Mono", "Courier New", monospace;
+
+  /* La geometría de la SPEC 16: 74 px con ratón, 76 con el dedo. */
+  --accion: 74px;
+}
+@media (pointer: coarse) {
+  :root { --accion: 76px; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; min-height: 100%; background: var(--bg); color: var(--ink); font-family: var(--mono); }
+
+.page {
+  min-height: 100vh;
+  padding: 48px 24px 64px;
+  display: flex; align-items: center; justify-content: center;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(255, 0, 110, 0.08), transparent 60%),
+    var(--bg);
+}
+
+/* Panel: el mismo material que el chasis, al tamaño de la pieza. */
+.gp {
+  position: relative;
+  padding: 24px;
+  background: linear-gradient(180deg, #1c1c28 0%, #0c0c14 100%);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow:
+    0 30px 80px -30px rgba(0, 245, 255, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.02),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.6);
+}
+.gp::before {
+  content: ""; position: absolute; inset: 4px;
+  border: 1px solid rgba(0, 245, 255, 0.14);
+  border-radius: 18px; pointer-events: none;
+}
+.gp::after {
+  content: ""; position: absolute; inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 8px 8px;
+  border-radius: inherit; pointer-events: none; opacity: 0.6;
+}
+
+/* B a la izquierda y A a la derecha, que es el orden del mando original. */
+.gp-actions {
+  position: relative; z-index: 1;
+  display: flex; align-items: center; gap: 22px;
+}
+.ab {
+  position: relative;
+  width: var(--accion); height: var(--accion);
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  background:
+    radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.25), transparent 50%),
+    radial-gradient(circle at 50% 55%, var(--ab-mid), var(--ab-deep) 75%);
+  padding: 0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow:
+    0 6px 0 #050507,
+    0 0 22px var(--ab-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.4);
+  transition: transform 80ms, box-shadow 140ms;
+}
+/* El color lo pone el hueco, no quien declara el botón: B es cian y A magenta,
+   siempre. */
+.ab.a { color: var(--magenta); --ab-mid: rgba(255, 0, 110, 0.7); --ab-deep: rgba(110, 0, 40, 0.95); --ab-glow: rgba(255, 0, 110, 0.4); }
+.ab.b { color: var(--cyan);    --ab-mid: rgba(0, 200, 230, 0.7); --ab-deep: rgba(0, 50, 70, 0.95); --ab-glow: rgba(0, 245, 255, 0.4); }
+
+/* Carcasa: se ve, no se toca. */
+.ab.inerte {
+  opacity: 0.32;
+  filter: saturate(0.45);
+  cursor: default;
+  pointer-events: none;
+}
+
+.ab .ab-letter {
+  font-family: var(--pixel); font-size: 22px;
+  color: #fff; letter-spacing: 0.02em;
+  position: relative; z-index: 2;
+}
+.ab.a .ab-letter { text-shadow: 0 0 8px var(--magenta), 0 0 18px var(--magenta), 0 1px 0 rgba(0, 0, 0, 0.6); }
+.ab.b .ab-letter { text-shadow: 0 0 8px var(--cyan),    0 0 18px var(--cyan),    0 1px 0 rgba(0, 0, 0, 0.6); }
+
+.ab .ab-ring {
+  position: absolute; inset: -8px;
+  border-radius: 50%;
+  border: 1px dashed currentColor;
+  opacity: 0; transition: opacity 140ms, transform 200ms;
+}
+@media (hover: hover) {
+  .ab:hover .ab-ring { opacity: 0.45; }
+}
+
+/* `.on` es el eco del teclado físico y comparte declaración con :active. */
+.ab.on, .ab:active {
+  transform: translateY(4px) scale(0.97);
+  box-shadow: 0 1px 0 #050507, 0 0 36px var(--ab-glow), inset 0 0 18px rgba(0, 0, 0, 0.5);
+}
+.ab.on .ab-ring, .ab:active .ab-ring { opacity: 1; transform: scale(1.08); }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="gp" role="group" aria-label="Botones de acción">
+    <div class="gp-actions">
+      <button class="ab b inerte" aria-hidden="true" disabled tabindex="-1"><span class="ab-ring"></span><span class="ab-letter">B</span></button>
+      <button class="ab a" aria-label="A" data-key="btnA"><span class="ab-ring"></span><span class="ab-letter">A</span></button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var keyMap = { z: "btnA", x: "btnB", j: "btnA", k: "btnB" };
+  function btn(key) { return document.querySelector('[data-key="' + key + '"]'); }
+  document.addEventListener("keydown", function (e) {
+    // `e.repeat` fuera: el auto-repeat del sistema dispara treinta keydown por
+    // segundo mientras se mantiene una tecla.
+    var k = keyMap[e.key]; if (!k || e.repeat) return;
+    var el = btn(k); if (el) el.classList.add("on");
+  });
+  document.addEventListener("keyup", function (e) {
+    var k = keyMap[e.key]; if (!k) return;
+    var el = btn(k); if (el) el.classList.remove("on");
+  });
+  document.querySelectorAll("[data-key]").forEach(function (b) {
+    b.addEventListener("pointerdown", function (e) {
+      // Sin captura, deslizar el dedo fuera del botón entrega el pointerup a
+      // otro elemento y la tecla se queda pulsada para siempre.
+      try { b.setPointerCapture(e.pointerId); } catch (err) {}
+      b.classList.add("on");
+    });
+    ["pointerup", "pointerleave", "pointercancel"].forEach(function (ev) {
+      b.addEventListener(ev, function () { b.classList.remove("on"); });
+    });
+  });
+})();
+</script>
+</body>
+</html>

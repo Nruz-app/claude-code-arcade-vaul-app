@@ -102,12 +102,26 @@ export interface BotonTactil {
   readonly accion: string; // para el aria-label: "Rotar a la izquierda"
 }
 
-// Un botón de acción, de los redondos de la derecha. Lleva dos cosas más que
-// uno de la cruceta porque se dibuja distinto: la cruceta saca su flecha (un
-// SVG) de la clave de dirección, y estos necesitan letra y color.
+// Los dos huecos de botón redondo que tiene el mando, en el orden en que se
+// dibujan: B a la izquierda, A a la derecha. Es el orden de la referencia
+// (references/gamepad-assets/gamepad.html), y el slot es lo que decide sitio y
+// color — B es cian y A magenta, siempre.
+//
+// El tipo es cerrado a propósito (SPEC 16): un juego con un tercer botón de
+// acción tiene que decidir dónde va antes de existir, y el error de TypeScript
+// llega en el momento correcto.
+export type SlotDeAccion = "B" | "A";
+
+// Un botón de acción, de los redondos de la derecha. Lleva una cosa más que uno
+// de la cruceta porque se dibuja distinto: la cruceta saca su flecha (un SVG) de
+// la clave de dirección, y estos necesitan letra.
+//
+// El color NO se declara aquí. Lo tenía (un campo `tono`) hasta la SPEC 16, y
+// con los slots fijos solo podía coincidir con el dibujo o contradecirlo: un
+// `{ etiqueta: "A", tono: "cyan" }` habría salido magenta en pantalla y cian en
+// el registro sin que nada se quejara.
 export interface BotonAccion extends BotonTactil {
-  readonly etiqueta: string; // la letra: "A"
-  readonly tono: "cyan" | "magenta";
+  readonly etiqueta: SlotDeAccion;
 }
 
 export type Direccion = "arriba" | "abajo" | "izquierda" | "derecha";
@@ -129,9 +143,7 @@ export const GAME_TOUCH: Partial<Record<string, MandoDeJuego>> = {
       derecha: { code: "ArrowRight", accion: "Rotar a la derecha" },
       arriba: { code: "ArrowUp", accion: "Propulsar" },
     },
-    acciones: [
-      { code: "Space", accion: "Disparar", etiqueta: "A", tono: "magenta" },
-    ],
+    acciones: [{ code: "Space", accion: "Disparar", etiqueta: "A" }],
   },
   caida: {
     cruceta: {
@@ -140,14 +152,7 @@ export const GAME_TOUCH: Partial<Record<string, MandoDeJuego>> = {
       arriba: { code: "ArrowUp", accion: "Rotar la pieza" },
       abajo: { code: "ArrowDown", accion: "Bajar más rápido" },
     },
-    acciones: [
-      {
-        code: "Space",
-        accion: "Soltar la pieza",
-        etiqueta: "A",
-        tono: "magenta",
-      },
-    ],
+    acciones: [{ code: "Space", accion: "Soltar la pieza", etiqueta: "A" }],
   },
   // Sin botón de acción: la pelota sale sola. Y con arrastre, que es el control
   // natural del juego — el motor ya traduce el puntero a posición de paleta.
@@ -181,3 +186,24 @@ export const GAME_TOUCH: Partial<Record<string, MandoDeJuego>> = {
     acciones: [],
   },
 };
+
+// Qué botón ocupa un slot de acción, si es que hay alguno. Devolver `undefined`
+// no es un fallo: el mando dibuja los dos huecos siempre (SPEC 16), y el que
+// nadie declara sale como carcasa apagada. Tres de los cinco juegos no tienen
+// ningún botón de acción.
+export function accionEnSlot(
+  mando: MandoDeJuego,
+  slot: SlotDeAccion,
+): BotonAccion | undefined {
+  return mando.acciones.find((boton) => boton.etiqueta === slot);
+}
+
+// Todos los botones de un mando en una lista: la cruceta y las acciones juntas.
+//
+// Vivía copiada en tests/harness/mando.ts y en tests/games/registry.test.ts, y
+// desde la SPEC 16 la necesita también el componente —para saber qué `code`
+// tiene que vigilar el eco del teclado—, así que sube aquí. Tres copias de la
+// misma función es donde una se queda vieja.
+export function botonesDelMando(mando: MandoDeJuego): BotonTactil[] {
+  return [...Object.values(mando.cruceta), ...mando.acciones];
+}
