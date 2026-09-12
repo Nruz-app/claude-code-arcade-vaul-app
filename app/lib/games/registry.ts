@@ -1,7 +1,7 @@
 // ===== app/lib/games/registry.ts =====
 // Qué juegos tienen motor real. La clave es el id de GAMES (app/lib/data.ts).
-// Lo que no esté aquí cae en el reproductor simulado, que es lo que hoy usan
-// los otros dos juegos del catálogo (invasores y duelo-pixel).
+// Lo que no esté aquí cae en el reproductor simulado, que es lo que hoy usa el
+// único juego del catálogo que sigue sin motor: duelo-pixel.
 //
 // Es Partial a propósito: al indexar con un id cualquiera el tipo resultante es
 // GameFactory | undefined, así que el despachador está obligado a comprobarlo.
@@ -9,6 +9,7 @@
 import { SKINS_BLOQUE_BUSTER, createArkanoidGame } from "./arkanoid";
 import { SKINS_ROCAS, createAsteroidsGame } from "./asteroids";
 import { SKINS_RANARIA, createFroggerGame } from "./frogger";
+import { SKINS_INVASORES, createInvadersGame } from "./invaders";
 import { createPacmanGame } from "./pacman";
 import type { FichaDeSkins } from "./skins";
 import { SKINS_SERPENTINA, createSnakeGame } from "./snake";
@@ -22,6 +23,7 @@ export const GAME_ENGINES: Partial<Record<string, GameFactory>> = {
   serpentina: createSnakeGame,
   ranaria: createFroggerGame,
   gloton: createPacmanGame,
+  invasores: createInvadersGame,
 };
 
 // Qué motores tienen paletas de skin declaradas. Sigue el mismo patrón que
@@ -42,6 +44,7 @@ export const GAME_PALETAS: Partial<Record<string, FichaDeSkins<string>>> = {
   serpentina: SKINS_SERPENTINA,
   caida: SKINS_CAIDA,
   ranaria: SKINS_RANARIA,
+  invasores: SKINS_INVASORES,
 };
 
 // Teclas que anuncia el overlay de arranque del reproductor. Viven aquí y no
@@ -93,6 +96,15 @@ export const GAME_CONTROLS: Partial<Record<string, readonly ControlHint[]>> = {
   gloton: [
     ["← → ↑ ↓", "MOVER"],
     ["W A S D", "MOVER"],
+    ["ESC", "PAUSA"],
+  ],
+  // INVASORES sí usa ESPACIO, como ROCAS: es la tecla que todo el mundo busca
+  // en un Space Invaders. No choca con el overlay de arranque porque cuando la
+  // partida corre el overlay ya no está montado. La flecha arriba dispara
+  // también, para quien lleve la mano en las flechas.
+  invasores: [
+    ["← →", "MOVER"],
+    ["ESPACIO / ↑", "DISPARAR"],
     ["ESC", "PAUSA"],
   ],
 };
@@ -209,11 +221,23 @@ export const GAME_TOUCH: Partial<Record<string, MandoDeJuego>> = {
     },
     acciones: [],
   },
+  // Solo horizontal, como BLOQUE BUSTER: el cañón vive en un carril.
+  //
+  // El motor también dispara con ArrowUp, pero la cruceta NO la declara: el
+  // botón redondo A ya dispara y es donde va el pulgar derecho. Una flecha
+  // arriba que hiciera lo mismo que A confunde el mando en vez de ayudar.
+  invasores: {
+    cruceta: {
+      izquierda: { code: "ArrowLeft", accion: "Mover el cañón a la izquierda" },
+      derecha: { code: "ArrowRight", accion: "Mover el cañón a la derecha" },
+    },
+    acciones: [{ code: "Space", accion: "Disparar", etiqueta: "A" }],
+  },
 };
 
 // Qué botón ocupa un slot de acción, si es que hay alguno. Devolver `undefined`
 // no es un fallo: el mando dibuja los dos huecos siempre (SPEC 16), y el que
-// nadie declara sale como carcasa apagada. Tres de los cinco juegos no tienen
+// nadie declara sale como carcasa apagada. Cuatro de los siete juegos no tienen
 // ningún botón de acción.
 export function accionEnSlot(
   mando: MandoDeJuego,
