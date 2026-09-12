@@ -16,6 +16,7 @@ import { vecesReproducido } from "../harness/audio";
 import { verificaContrato } from "../harness/contrato";
 import { verificaMando } from "../harness/mando";
 import { montaMotor, pulsa, suelta } from "../harness/motor";
+import { verificaRendimiento } from "../harness/rendimiento";
 import { verificaSkins } from "../harness/skins";
 
 const SFX_SALTO = "/rana-salto.mp3";
@@ -24,6 +25,27 @@ const SFX_CHOQUE = "/rana-choque.mp3";
 verificaContrato("RANARIA", createFroggerGame);
 verificaSkins("RANARIA", createFroggerGame, SKINS_RANARIA);
 verificaMando("RANARIA", "ranaria", createFroggerGame);
+
+// El presupuesto por fotograma, medido el 2026-09-11 con la rana quieta en la
+// orilla y los doce carriles llenos (el peor caso estable del motor). Las cuatro
+// cifras son techos con holgura sobre lo medido, para que la prueba pille un
+// cambio de orden de magnitud y no el ruido del runner:
+//
+//  - dibujo: 465 llamadas al contexto (antes de la auditoría eran 951, con 375 de
+//    ellas del escenario, que ahora se copia de un canvas cacheado).
+//  - colores: 103 asignaciones (eran 150; el resto se quedó en el carril y en el
+//    canvas del fondo).
+//  - emisiones: 0 en 600 fotogramas. RANARIA solo emite al avanzar de fila, al
+//    ocupar un nenúfar y al morir, así que una partida quieta no emite nada; el
+//    techo de 10 está para delatar una emisión por fotograma, que serían 600.
+//  - heap: medido entre −3 y 191 KB en pasadas idénticas, así que la sonda no
+//    resuelve nada por debajo de eso y el techo solo vigila una fuga.
+verificaRendimiento("RANARIA", createFroggerGame, {
+  dibujoPorFrame: 580,
+  coloresPorFrame: 130,
+  emisionesEn600: 10,
+  heapKbEn600: 500,
+});
 
 describe("RANARIA: resolución", () => {
   it("usa el canvas de 800×600 que fija el reproductor", () => {

@@ -24,7 +24,7 @@ Estados posibles:
 | 2026-08-13 | Frogger        | `ranaria`       | `implementado` | `specs/game-jam/ranaria/` + `11`     | Ganó con 34/35 y se implementó el mismo día. La spec no salió de `/nuevo-juego` sino del agente `game-jam` (tema: "la ranita"); la SPEC 11 le añadió después el sonido, y es el único juego del portal que suena. |
 | 2026-08-13 | Pipe Mania     | `flujo`         | `propuesto`    | —                                    | 33/35, nº 1 del roadmap. **No está en `GAMES`**: pide entrada de catálogo y portada `cover-flujo`, acento `magenta`. Sería el segundo PUZZLE, la categoría más vacía.                                             |
 | 2026-08-13 | Space Invaders | `invasores`     | `propuesto`    | —                                    | 31/35, nº 2 del roadmap. Barato, pero repite el «nave que dispara» de ROCAS y quiere `ESPACIO`.                                                                                                                   |
-| 2026-08-13 | Pac-Man        | `gloton`        | `propuesto`    | —                                    | 31/35, nº 3 del roadmap **por coste, no por valor**: es el mejor juego de la lista y el más caro. Súbelo si el objetivo es un juego grande.                                                                       |
+| 2026-08-13 | Pac-Man        | `gloton`        | `implementado` | `18-juego-gloton-pacman.md`          | 31/35, nº 3 del roadmap **por coste, no por valor**: es el mejor juego de la lista y el más caro. Súbelo si el objetivo es un juego grande.                                                                       |
 | 2026-08-13 | Pong           | `duelo-pixel`   | `propuesto`    | —                                    | 28/35, nº 4 y **bloqueado por diseño**: el marcador 0–11 no compara en el Salón. No implementar sin resolver antes la métrica de puntuación.                                                                      |
 
 ## Candidatos vivos del catálogo (aún sin motor)
@@ -83,3 +83,31 @@ del usuario sobre el rumbo del catálogo, huecos detectados)_
   `crearSfx()`), así que «tiene sonido» dejó de ser un coste extra para un candidato.
   Reparto tras RANARIA: ARCADE 3, SHOOTER 1, PUZZLE 1, VERSUS 0 — refuerza que el próximo
   no debería ser ARCADE, lo que empuja a **FLUJO** (PUZZLE) por delante de `gloton`.
+
+- 2026-09-10 — **GLOTÓN (`gloton`) aceptado como siguiente**, y no por puntuación: empata a
+  31 con `invasores` y va detrás de `flujo` (33). Lo decidió el objetivo — se pidió el juego
+  grande, y para ese caso esta misma memoria ya lo señalaba como el candidato natural
+  («súbelo si el objetivo es un juego grande»). `flujo` sigue siendo el nº 1 por puntuación
+  y su fila no se toca. A favor de `gloton`: ya está entero en `GAMES` (`cover-glot`, acento
+  `yellow`), así que no cuesta entrada de catálogo ni portada, que era el único punto donde
+  `flujo` perdía. En contra: es ARCADE, y el reparto queda ARCADE 4 de 6 — PUZZLE y VERSUS
+  siguen siendo los huecos, así que el argumento de categoría queda pendiente para el
+  siguiente, no resuelto.
+- 2026-09-10 — Apareció `specs/game-jam/frogger/01-flogger-core.md`, una spec de Frogger con
+  id `frogger`. **No se implementó, y no debe implementarse**: Frogger ya tiene motor como
+  `ranaria` desde el 2026-08-13, y además esa spec describe una arquitectura que no es la de
+  este repo (componente React `FroggerGame.tsx` con `useEffect`, ruta `app/games/<id>/play/`,
+  una tabla `games` en Supabase, `onGameOver(finalScore)` en vez de `GameOverSummary`, canvas
+  640×560). Queda anotado aquí porque la fila de Frogger ya está en `implementado` y un
+  documento suelto con otro id es justo lo que esta memoria existe para desmentir.
+- 2026-09-11 — **GLOTÓN implementado** (SPEC 18, `app/lib/games/pacman.ts`). Sexto motor del
+  portal. Tres cosas que dejan enseñanza para las próximas evaluaciones: el coste estimado
+  («el más caro con diferencia») **se confirmó** —1 326 líneas de motor frente a las 943 de
+  SERPENTINA—, pero la mitad de ese coste fue el laberinto, que es dato transcrito y no
+  lógica; el trazado se validó **contando** (240 puntos, 4 píldoras, simetría y BFS de
+  alcanzabilidad) y esas pruebas cazaron dos errores de transcripción que ni el tipo ni la
+  vista detectan. Y es el **primer motor con un solo aspecto**: no declara `FichaDeSkins` ni
+  entra en `GAME_PALETAS` por decisión del usuario, así que su overlay no enseña el selector.
+  Reparto tras GLOTÓN: ARCADE 4, SHOOTER 1, PUZZLE 1, VERSUS 0 — **PUZZLE y VERSUS siguen
+  siendo los huecos**, y el argumento de categoría que empujaba a `flujo` sigue intacto y sin
+  gastar.

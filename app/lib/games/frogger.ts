@@ -478,13 +478,15 @@ function avanzarCarril(carril: Carril, dt: number, mult: number) {
   }
 }
 
-function cajaMovil(carril: Carril, movil: Movil): Caja {
-  return {
-    x: movil.x,
-    y: filaY(carril.def.fila),
-    w: carril.def.largo * CELL,
-    h: CELL,
-  };
+// Escribe la caja del móvil en `destino` en vez de devolver una nueva: se llama
+// por cada vehículo del carril de la rana y en cada fotograma, y el motor reutiliza
+// siempre el mismo objeto (ver `cajaOtra` en el closure).
+function cajaMovil(destino: Caja, carril: Carril, movil: Movil): Caja {
+  destino.x = movil.x;
+  destino.y = filaY(carril.def.fila);
+  destino.w = carril.def.largo * CELL;
+  destino.h = CELL;
+  return destino;
 }
 
 function solapa(a: Caja, b: Caja): boolean {
@@ -590,6 +592,34 @@ class Input {
 // OVER, ni overlay de pausa: todo eso es HUD y lo pone la plataforma. La barra de
 // tiempo sí, y es la única excepción: es estado del juego y no hay ningún
 // callback del contrato capaz de transportarlo.
+//
+// ── Convención de estado del contexto (auditoría de rendimiento) ─────────────
+//
+// Hasta la auditoría, cada entidad se envolvía en su propio save()/restore():
+// once pares, 118 llamadas al contexto por fotograma sobre los 40-60 móviles que
+// producen los doce carriles. El Proxy del harness se los traga en 0 ms, pero en
+// un navegador cada par copia y restaura el estado entero del contexto.
+//
+// Ahora el estado compartido se pone UNA VEZ por carril y cada función deja el
+// contexto como lo encontró: `shadowBlur = 0`, `globalAlpha = 1`, sin
+// transformar y sin patrón de línea. Lo que NO se restaura es `shadowColor`, y es
+// deliberado: el estándar solo dibuja la sombra si `shadowColor` es opaco **y**
+// además `shadowBlur` o alguno de los dos desplazamientos es distinto de cero, así
+// que con `shadowBlur = 0` un `shadowColor` viejo no pinta nada. Se ahorra así una
+// asignación de color por entidad sin tocar un píxel.
+//
+// El único save()/restore() que queda es el del cuerpo de la rana, porque ahí hay
+// translate()/scale() y deshacer una transformación a mano sería peor.
+
+// Los dos lados de una entidad simétrica: patas, ojos, alitas de la mosca y
+// reflejos de la ranita del nenúfar. Eran arrays literales dentro de los bucles de
+// dibujo, o sea media docena de arrays nuevos por fotograma; como constante de
+// módulo no se asigna ninguno. No es estado (la invariante nº 1 prohíbe el estado
+// mutable de módulo, no las constantes: CARRILES y SALTOS ya viven aquí).
+const LADOS = [-1, 1] as const;
+// Los ojos se dibujan en el orden contrario, y se respeta tal cual: el orden de
+// dibujo es lo único que esta auditoría no puede cambiar.
+const LADOS_OJOS = [1, -1] as const;
 
 // roundRect existe en los navegadores modernos, pero se dibuja a mano para no
 // depender de él ni de la versión de las tipificaciones del DOM.
@@ -612,6 +642,19 @@ function rectRedondeado(
   ctx.fill();
 }
 
+// El escenario entero: las cuatro bandas, las ocho ondulaciones del río, la
+// discontinua de los carriles, los bordes de tierra y el seto de la meta.
+//
+// Es ESTÁTICO: no depende de nada que cambie durante una partida, solo de la
+// paleta. Medido antes de la auditoría, costaba **375 de las 951 llamadas al
+// contexto de cada fotograma (39 %)**, 320 de ellas `quadraticCurveTo` de unas
+// ondulaciones idénticas sesenta veces por segundo. Por eso ya no se llama desde
+// draw(): se pinta una sola vez en un canvas aparte (`fondoCacheado()`, en el
+// closure del motor) y el fotograma paga un único `drawImage`.
+//
+// Sigue siendo una función suelta, sin capturar nada, porque también es el camino
+// de reserva: si el canvas de caché no diera contexto, draw() la llama directa y
+// se pinta exactamente lo mismo.
 function drawEscenario(ctx: CanvasRenderingContext2D, paleta: PaletaRanaria) {
   ctx.fillStyle = paleta.fondo;
   ctx.fillRect(0, 0, W, H);
@@ -681,37 +724,46 @@ function drawNenufares(
   nenufares: readonly Nenufar[],
   ahora: number,
 ) {
+  const cy = filaY(FILA_META) + CELL / 2;
+  // Los cinco nenúfares se pintan con el mismo color, el mismo trazo y el mismo
+  // halo: el estado va fuera del bucle, no cinco veces dentro (eran 15 de las 150
+  // asignaciones de color del fotograma, más cinco pares save()/restore()).
+  // `estadoPuesto` baja a false cuando la ranita o la mosca lo pisan, que es lo
+  // único que obliga a volver a ponerlo.
+  let estadoPuesto = false;
+
   for (const nenufar of nenufares) {
     const cx = xDeColumna(nenufar.col) + CELL / 2;
-    const cy = filaY(FILA_META) + CELL / 2;
 
-    ctx.save();
-    ctx.fillStyle = paleta.nenufar;
-    ctx.strokeStyle = paleta.nenufarBorde;
-    ctx.lineWidth = 2;
-    ctx.shadowColor = paleta.nenufarBorde;
-    ctx.shadowBlur = 8;
+    if (!estadoPuesto) {
+      ctx.fillStyle = paleta.nenufar;
+      ctx.strokeStyle = paleta.nenufarBorde;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = paleta.nenufarBorde;
+      ctx.shadowBlur = 8;
+      estadoPuesto = true;
+    }
     ctx.beginPath();
     ctx.arc(cx, cy, CELL * 0.4, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    ctx.restore();
 
     // El nenúfar ocupado lleva dentro una ranita pequeña: es el marcador de
-    // progreso del nivel, y se lee de un vistazo.
+    // progreso del nivel, y se lee de un vistazo. Va sin halo, como antes: el
+    // save()/restore() del nenúfar dejaba el blur a cero justo aquí.
     if (nenufar.ocupado) {
-      ctx.save();
+      ctx.shadowBlur = 0;
+      estadoPuesto = false;
       ctx.fillStyle = paleta.rana;
       ctx.beginPath();
       ctx.arc(cx, cy + 2, CELL * 0.18, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = paleta.ranaClaro;
-      for (const lado of [-1, 1]) {
+      for (const lado of LADOS) {
         ctx.beginPath();
         ctx.arc(cx + lado * CELL * 0.11, cy - CELL * 0.1, 3, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.restore();
       continue;
     }
 
@@ -721,7 +773,7 @@ function drawNenufares(
       const avisando = nenufar.moscaMs < MOSCA_PARPADEO_MS;
       if (avisando && Math.floor(ahora / 150) % 2 === 0) continue;
 
-      ctx.save();
+      estadoPuesto = false;
       ctx.fillStyle = paleta.mosca;
       ctx.shadowColor = paleta.mosca;
       ctx.shadowBlur = 10;
@@ -730,7 +782,7 @@ function drawNenufares(
       ctx.fill();
       // Dos alitas, para que no sea solo un punto amarillo.
       ctx.globalAlpha = 0.5;
-      for (const lado of [-1, 1]) {
+      for (const lado of LADOS) {
         ctx.beginPath();
         ctx.ellipse(
           cx + lado * CELL * 0.16,
@@ -743,97 +795,125 @@ function drawNenufares(
         );
         ctx.fill();
       }
-      ctx.restore();
+      ctx.globalAlpha = 1;
     }
   }
+
+  // La convención de arriba: se sale sin halo y sin alfa, como dejaba el
+  // restore() que había en cada iteración.
+  ctx.shadowBlur = 0;
 }
 
-function drawMovil(
+// Un carril entero, de una vez, y no un móvil por llamada.
+//
+// Es el cambio de la auditoría: los móviles de un carril comparten color, trazo y
+// halo —la tabla CARRILES declara un solo rol por carril—, así que ese estado se
+// pone una vez por carril en vez de una vez por móvil. Con los 40-60 móviles que
+// hay en pantalla eso eran 76 llamadas a save()/restore() y 14 asignaciones de
+// `shadowColor` de más por fotograma.
+//
+// El ORDEN DE DIBUJO es exactamente el de antes: móvil por móvil, y dentro de cada
+// vehículo carrocería → ventanillas → faros. Reagrupar por capas habría sido más
+// barato todavía, pero mueve los halos por debajo o por encima de lo que no les
+// toca, y eso sí se vería.
+function drawCarril(
   ctx: CanvasRenderingContext2D,
   paleta: PaletaRanaria,
   carril: Carril,
-  movil: Movil,
   ahora: number,
 ) {
   const { def } = carril;
-  const x = movil.x;
   const y = filaY(def.fila);
   const w = def.largo * CELL;
   // La tabla guarda el nombre del rol; el color sale de la paleta del skin.
   const color = paleta[def.color];
 
   if (def.tipo === "tronco") {
-    ctx.save();
     ctx.fillStyle = color;
-    rectRedondeado(ctx, x + 2, y + 8, w - 4, CELL - 16, 8);
     ctx.strokeStyle = paleta.troncoBorde;
     ctx.lineWidth = 2;
-    ctx.stroke();
-    // Tres vetas, para que el tronco no sea una barra lisa.
-    ctx.globalAlpha = 0.5;
-    ctx.beginPath();
-    for (let i = 1; i <= 3; i++) {
-      const vx = x + (w * i) / 4;
-      ctx.moveTo(vx, y + 13);
-      ctx.lineTo(vx, y + CELL - 13);
+    for (const movil of carril.moviles) {
+      const x = movil.x;
+      rectRedondeado(ctx, x + 2, y + 8, w - 4, CELL - 16, 8);
+      ctx.stroke();
+      // Tres vetas, para que el tronco no sea una barra lisa.
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      for (let i = 1; i <= 3; i++) {
+        const vx = x + (w * i) / 4;
+        ctx.moveTo(vx, y + 13);
+        ctx.lineTo(vx, y + CELL - 13);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
-    ctx.stroke();
-    ctx.restore();
     return;
   }
 
   if (def.tipo === "tortuga") {
-    const estado = estadoTortuga(movil.ciclo);
-    // Sumergida no se dibuja: hay que ver el agua donde antes había suelo.
-    if (estado === "sumergida") return;
-
-    ctx.save();
-    if (estado === "parpadeo") {
-      ctx.globalAlpha = Math.floor(ahora / 150) % 2 === 0 ? 0.35 : 0.85;
-    }
+    // El halo es del carril: nada de lo que se dibuja aquí lo apaga, así que se
+    // pone una vez y se quita al salir.
     ctx.shadowColor = color;
     ctx.shadowBlur = 8;
-    for (let i = 0; i < def.largo; i++) {
-      const cx = x + i * CELL + CELL / 2;
-      const cy = y + CELL / 2;
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(cx, cy, CELL * 0.4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = paleta.tortugaCaparazon;
-      ctx.beginPath();
-      ctx.arc(cx, cy, CELL * 0.26, 0, Math.PI * 2);
-      ctx.fill();
+    const cy = y + CELL / 2;
+    for (const movil of carril.moviles) {
+      const estado = estadoTortuga(movil.ciclo);
+      // Sumergida no se dibuja: hay que ver el agua donde antes había suelo.
+      if (estado === "sumergida") continue;
+
+      const parpadeando = estado === "parpadeo";
+      if (parpadeando) {
+        ctx.globalAlpha = Math.floor(ahora / 150) % 2 === 0 ? 0.35 : 0.85;
+      }
+      for (let i = 0; i < def.largo; i++) {
+        const cx = movil.x + i * CELL + CELL / 2;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(cx, cy, CELL * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = paleta.tortugaCaparazon;
+        ctx.beginPath();
+        ctx.arc(cx, cy, CELL * 0.26, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (parpadeando) ctx.globalAlpha = 1;
     }
-    ctx.restore();
+    ctx.shadowBlur = 0;
     return;
   }
 
-  // Vehículo. El morro va en el sentido de la marcha, así que los faros cambian
+  // Vehículos. El morro va en el sentido de la marcha, así que los faros cambian
   // de lado con dir.
-  ctx.save();
-  ctx.fillStyle = color;
+  //
+  // `shadowColor` se pone una vez por carril y el halo se enciende y se apaga con
+  // `shadowBlur` alrededor de cada carrocería: las ventanillas y los faros nunca
+  // lo llevaron (los dibujaba otro save()/restore(), con el blur a cero), y con
+  // blur 0 el `shadowColor` que queda puesto no pinta nada.
   ctx.shadowColor = color;
-  ctx.shadowBlur = 10;
-  rectRedondeado(ctx, x + 4, y + 7, w - 8, CELL - 14, 7);
-  ctx.restore();
-
-  // Las ventanillas son el hueco oscuro del vehículo, y por eso reutilizan el
-  // rol del fondo en vez de tener uno propio: un cristal más claro que la
-  // carrocería dejaría de leerse como hueco en cualquiera de las tres paletas.
-  ctx.save();
-  ctx.fillStyle = paleta.fondo;
-  ctx.globalAlpha = 0.55;
   const ventanillas = Math.max(1, def.largo);
-  for (let i = 0; i < ventanillas; i++) {
-    ctx.fillRect(x + 12 + i * CELL, y + 14, CELL - 24, CELL - 28);
-  }
-  ctx.restore();
+  for (const movil of carril.moviles) {
+    const x = movil.x;
 
-  ctx.fillStyle = paleta.faro;
-  const faroX = def.dir === 1 ? x + w - 9 : x + 4;
-  ctx.fillRect(faroX, y + 12, 5, 5);
-  ctx.fillRect(faroX, y + CELL - 17, 5, 5);
+    ctx.fillStyle = color;
+    ctx.shadowBlur = 10;
+    rectRedondeado(ctx, x + 4, y + 7, w - 8, CELL - 14, 7);
+    ctx.shadowBlur = 0;
+
+    // Las ventanillas son el hueco oscuro del vehículo, y por eso reutilizan el
+    // rol del fondo en vez de tener uno propio: un cristal más claro que la
+    // carrocería dejaría de leerse como hueco en cualquiera de las tres paletas.
+    ctx.fillStyle = paleta.fondo;
+    ctx.globalAlpha = 0.55;
+    for (let i = 0; i < ventanillas; i++) {
+      ctx.fillRect(x + 12 + i * CELL, y + 14, CELL - 24, CELL - 28);
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = paleta.faro;
+    const faroX = def.dir === 1 ? x + w - 9 : x + 4;
+    ctx.fillRect(faroX, y + 12, 5, 5);
+    ctx.fillRect(faroX, y + CELL - 17, 5, 5);
+  }
 }
 
 function drawRana(
@@ -873,7 +953,7 @@ function drawRana(
 
   // Patas traseras, en el lado contrario al que mira.
   ctx.fillStyle = cuerpo;
-  for (const lado of [-1, 1]) {
+  for (const lado of LADOS) {
     const px = mirando.dc !== 0 ? -mirando.dc * 13 : lado * 13;
     const py = mirando.dr !== 0 ? -mirando.dr * 13 : lado * 13;
     rectRedondeado(ctx, px - 6, py - 6, 12, 12, 4);
@@ -892,11 +972,15 @@ function drawRana(
 
   // Los ojos van hacia donde mira la rana: es lo que permite saber en qué
   // dirección saltó la última vez sin mirar el tablero entero.
-  const perp = { dc: -mirando.dr, dr: mirando.dc };
-  ctx.save();
-  for (const lado of [1, -1]) {
-    const ox = cx + mirando.dc * 9 + perp.dc * 8 * lado;
-    const oy = cy + mirando.dr * 9 + perp.dr * 8 * lado;
+  //
+  // La perpendicular era un objeto nuevo por fotograma; son dos números. Y el
+  // save()/restore() que envolvía el bucle solo guardaba `fillStyle`, que es lo
+  // primero que pone la barra de tiempo justo después.
+  const perpDc = -mirando.dr;
+  const perpDr = mirando.dc;
+  for (const lado of LADOS_OJOS) {
+    const ox = cx + mirando.dc * 9 + perpDc * 8 * lado;
+    const oy = cy + mirando.dr * 9 + perpDr * 8 * lado;
     ctx.fillStyle = claro;
     ctx.beginPath();
     ctx.arc(ox, oy, 5, 0, Math.PI * 2);
@@ -906,7 +990,6 @@ function drawRana(
     ctx.arc(ox + mirando.dc * 1.5, oy + mirando.dr * 1.5, 2.4, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.restore();
 }
 
 function drawBarraTiempo(
@@ -918,12 +1001,13 @@ function drawBarraTiempo(
   const frac = Math.max(0, Math.min(1, tiempoMs / tiempoTotalMs));
   const bajo = tiempoMs <= 5000;
   const color = bajo ? paleta.barraTiempoBajo : paleta.barraTiempo;
-  ctx.save();
   ctx.fillStyle = color;
   ctx.shadowColor = color;
   ctx.shadowBlur = 8;
   ctx.fillRect(0, H - 6, W * frac, 6);
-  ctx.restore();
+  // Es lo último del fotograma, así que apagar el halo aquí es lo que garantiza
+  // que el `drawImage` del fondo del fotograma siguiente no lo arrastre.
+  ctx.shadowBlur = 0;
 }
 
 // ── Motor ─────────────────────────────────────────────────────────────────────
@@ -959,6 +1043,10 @@ export const createFroggerGame: GameFactory = (
   let saltoDesdeFila = FILA_SALIDA;
   let saltoMs = 0;
   let carriles: Carril[] = [];
+  // Índice fila → carril. carrilDe() se llama en cada fotograma y resolvía la
+  // fila con un `.find()`, que fabrica un closure nuevo y recorre los nueve
+  // carriles; aquí es un acceso por índice. Se rellena en initGame().
+  let carrilPorFila: (Carril | undefined)[] = [];
   let nenufares: Nenufar[] = [];
   let filaMinAlcanzada = FILA_SALIDA; // la fila más alta de este intento
   let tiempoMs = 0;
@@ -976,6 +1064,32 @@ export const createFroggerGame: GameFactory = (
   // correr al pausar. Las pausas quedan fuera sin lógica extra.
   let elapsedMs = 0;
   let reloj = 0; // ms desde el arranque, solo para las animaciones de dibujo
+
+  // El escenario, pintado una sola vez (ver drawEscenario). Vive en el closure y
+  // se suelta en destroy(): a nivel de módulo sobreviviría entre montajes y el
+  // segundo montaje pintaría el fondo del skin anterior.
+  //
+  // No se usa OffscreenCanvas: no existe en jsdom, y el canvas del DOM funciona en
+  // los dos sitios. Se pide al documento del canvas que ya tenemos, así que el
+  // motor no toca ningún global.
+  let fondo: HTMLCanvasElement | null = null;
+
+  function fondoCacheado(): HTMLCanvasElement | null {
+    if (fondo) return fondo;
+    const lienzo = canvas.ownerDocument.createElement("canvas");
+    lienzo.width = W;
+    lienzo.height = H;
+    const pincel = lienzo.getContext("2d");
+    if (!pincel) return null; // sin contexto, draw() pinta el escenario directo
+    drawEscenario(pincel, paleta);
+    fondo = lienzo;
+    return fondo;
+  }
+
+  // Las dos cajas de la comprobación de atropello, reutilizadas: antes se creaban
+  // una para la rana y una por vehículo del carril en CADA fotograma.
+  const cajaRana: Caja = { x: 0, y: 0, w: 0, h: 0 };
+  const cajaOtra: Caja = { x: 0, y: 0, w: 0, h: 0 };
 
   // Los callbacks provocan renders de React: solo se emite cuando el valor cambia
   // de verdad.
@@ -1027,6 +1141,8 @@ export const createFroggerGame: GameFactory = (
 
   function initGame() {
     carriles = CARRILES.map(crearCarril);
+    carrilPorFila = [];
+    for (const carril of carriles) carrilPorFila[carril.def.fila] = carril;
     nenufares = COLS_NENUFAR.map((col) => ({
       col,
       ocupado: false,
@@ -1131,7 +1247,7 @@ export const createFroggerGame: GameFactory = (
   }
 
   function carrilDe(fila: number): Carril | undefined {
-    return carriles.find((carril) => carril.def.fila === fila);
+    return carrilPorFila[fila];
   }
 
   function llegarAMeta() {
@@ -1233,14 +1349,14 @@ export const createFroggerGame: GameFactory = (
         return;
       }
     } else if (esCarretera(ranaFila) && carril) {
-      const caja: Caja = {
-        x: ranaX + RANA_INSET,
-        y: filaY(ranaFila) + RANA_INSET,
-        w: CELL - RANA_INSET * 2,
-        h: CELL - RANA_INSET * 2,
-      };
+      // Las dos cajas son buffers del closure: antes se creaba una para la rana y
+      // una por vehículo en cada fotograma con la rana en la carretera.
+      cajaRana.x = ranaX + RANA_INSET;
+      cajaRana.y = filaY(ranaFila) + RANA_INSET;
+      cajaRana.w = CELL - RANA_INSET * 2;
+      cajaRana.h = CELL - RANA_INSET * 2;
       for (const movil of carril.moviles) {
-        if (solapa(caja, cajaMovil(carril, movil))) {
+        if (solapa(cajaRana, cajaMovil(cajaOtra, carril, movil))) {
           matar("atropello");
           return;
         }
@@ -1251,13 +1367,17 @@ export const createFroggerGame: GameFactory = (
   }
 
   function draw() {
-    drawEscenario(ctx, paleta);
+    // El escenario es el mismo fotograma a fotograma: se copia de su canvas en vez
+    // de volver a trazar las 320 curvas del río (375 de las 951 llamadas que
+    // costaba un fotograma). El fondo es opaco y cubre los 800×600, así que el
+    // drawImage pinta exactamente lo que pintaba drawEscenario.
+    const copia = fondoCacheado();
+    if (copia) ctx.drawImage(copia, 0, 0);
+    else drawEscenario(ctx, paleta);
+
     drawNenufares(ctx, paleta, nenufares, reloj);
 
-    for (const carril of carriles) {
-      for (const movil of carril.moviles)
-        drawMovil(ctx, paleta, carril, movil, reloj);
-    }
+    for (const carril of carriles) drawCarril(ctx, paleta, carril, reloj);
 
     // La posición dibujada interpola el salto, pero la lógica ya está resuelta en
     // la celda de destino: lo que se ve es un adorno de 90 ms.
@@ -1351,6 +1471,9 @@ export const createFroggerGame: GameFactory = (
       // de audio vivo por montaje.
       sfxSalto.destroy();
       sfxChoque.destroy();
+      // Y lo mismo con el canvas del fondo: 800×600 en píxeles por montaje que se
+      // queda sin soltar si el closure sigue referenciándolo.
+      fondo = null;
     },
   };
 };

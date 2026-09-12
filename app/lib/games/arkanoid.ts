@@ -708,6 +708,30 @@ const GLOW_BLOCK = 8;
 const GLOW_PADDLE = 14;
 const GLOW_BALL = 12;
 
+// ── Geometría de la caché de la muralla ───────────────────────────────────────
+//
+// La muralla es a la vez lo más caro de pintar y lo más estático que hay: hasta
+// 60 bloques × 2 fillRect con shadowBlur = 8, idénticos fotograma tras fotograma
+// hasta que cae un bloque. Medido con el harness al segundo 1 de partida (59
+// bloques vivos): **132 llamadas al contexto y 191 asignaciones de color por
+// fotograma**, de las que 118 fillRect y 177 colores son de la muralla.
+//
+// Se pinta una sola vez en un canvas aparte y cada fotograma solo copia el
+// resultado con un `drawImage`. El blur se sigue pagando entero —no se toca ni
+// un píxel del halo—, solo que una vez por cambio de muralla en vez de sesenta
+// veces por segundo.
+//
+// El recorte no es el canvas completo sino la caja de la muralla más un margen
+// para el halo: 704×208 en vez de 800×600, un 70 % menos de píxeles que copiar.
+// El margen es 4 × GLOW_BLOCK; el halo de un shadowBlur de 8 usa σ = blur/2 = 4
+// y se apaga hacia los 3σ ≈ 12 px, así que cabe entero con holgura. Recortarlo
+// sería cambiar lo que se ve, que es lo único que no se puede hacer aquí.
+const MARGEN_HALO = 4 * GLOW_BLOCK; // 32
+const MURO_X = BLOCKS_ORIGIN_X - MARGEN_HALO; // 48
+const MURO_Y = BLOCKS_ORIGIN_Y - MARGEN_HALO; // 48
+const MURO_W = BLOCK_COLS * BLOCK_W + 2 * MARGEN_HALO; // 704
+const MURO_H = BLOCK_ROWS * BLOCK_H + 2 * MARGEN_HALO; // 208
+
 export function drawBackground(
   ctx: CanvasRenderingContext2D,
   paleta: PaletaBloqueBuster,
@@ -724,12 +748,23 @@ export function drawBlocks(
   paleta: PaletaBloqueBuster,
 ): void {
   ctx.shadowBlur = GLOW_BLOCK;
+  // El halo solo se reasigna cuando cambia de veta. Las filas de los cinco
+  // patrones son monocromas y los bloques se recorren por filas, así que con la
+  // muralla completa esto baja las escrituras de shadowColor de 60 a 6 (medido:
+  // =shadowColor×61 → ×7 por pintada de muralla, contando la paleta y la
+  // pelota). Escribir el mismo valor en shadowColor no dibuja nada distinto: es
+  // una invalidación del estado del contexto y nada más, así que saltarla no
+  // cambia un píxel.
+  let halo: string | null = null;
   for (const block of blocks) {
     if (!block.alive) continue;
     // Aquí es donde el nombre de veta que guarda el bloque se convierte en
     // color: la data de niveles no sabe de skins.
     const color = paleta[block.color];
-    ctx.shadowColor = color;
+    if (color !== halo) {
+      ctx.shadowColor = color;
+      halo = color;
+    }
     ctx.fillStyle = color;
     ctx.fillRect(block.x + 1, block.y + 1, block.w - 2, block.h - 2);
     ctx.fillStyle = paleta.relieve;
@@ -781,6 +816,14 @@ export function drawParticles(
   particles: readonly Particle[],
   paleta: PaletaBloqueBuster,
 ): void {
+  // Las ocho partículas de un bloque nacen en el mismo fotograma y del mismo
+  // bloque, así que comparten `elapsed` —y por tanto `life`— y comparten color:
+  // el código anterior escribía nueve veces el mismo globalAlpha y ocho veces el
+  // mismo fillStyle por ráfaga. Se reasigna solo cuando el valor cambia de
+  // verdad, que es pixel a pixel lo mismo con ocho invalidaciones de estado
+  // menos (medido: =globalAlpha×9 → ×2 y ocho fillStyle menos por ráfaga).
+  let alfa: number | null = null;
+  let relleno: string | null = null;
   for (const particle of particles) {
     const life = 1 - particle.elapsed / PARTICLE_MS;
     if (life <= 0) continue;
@@ -788,10 +831,20 @@ export function drawParticles(
     // El desvanecido va por globalAlpha y no por conAlfa(): así era antes de los
     // skins y cambiarlo alteraría la secuencia de colores que llega al canvas,
     // que es justo lo que verifica la cero-regresión de neón.
-    ctx.globalAlpha = life;
-    ctx.fillStyle = paleta[particle.color];
+    if (life !== alfa) {
+      ctx.globalAlpha = life;
+      alfa = life;
+    }
+    const color = paleta[particle.color];
+    if (color !== relleno) {
+      ctx.fillStyle = color;
+      relleno = color;
+    }
     ctx.fillRect(particle.x - size / 2, particle.y - size / 2, size, size);
   }
+  // Sin condición, a propósito: la función promete dejar el contexto con alfa 1
+  // pase lo que pase, y es lo que hace que el orden de las cinco funciones de
+  // dibujo no importe.
   ctx.globalAlpha = 1;
 }
 
@@ -805,7 +858,17 @@ export const createArkanoidGame: GameFactory = (
   callbacks,
   skin = "neon",
 ) => {
-  const context2d = canvas.getContext("2d");
+  // `{ alpha: false }`: el motor tapa el canvas entero con `paleta.fondo` en
+  // cada fotograma, y ese rol es opaco en las tres paletas ("#000"), así que
+  // nunca se ve nada por detrás. Un canvas opaco le ahorra al navegador
+  // componer la capa con alfa. Detrás solo hay el `background: #000` de
+  // `.crt-screen`, que es el mismo negro, de modo que el resultado en pantalla
+  // es idéntico. **No vale para CAÍDA**, que usa `clearRect` a propósito para
+  // dejar ver el marco CRT; aquí sí.
+  //
+  // Ninguna de las cuatro sondas de Vitest ve esta ganancia —el stub del harness
+  // ignora el segundo argumento—: vive en el tiempo de rasterizado.
+  const context2d = canvas.getContext("2d", { alpha: false });
   if (!context2d) throw new Error("BLOQUE BUSTER necesita un canvas 2D");
   // Con tipo explícito: el estrechamiento del guard no llega hasta draw(), que
   // es un closure.
@@ -835,7 +898,17 @@ export const createArkanoidGame: GameFactory = (
   };
   const ball: Ball = { x: 0, y: 0, size: BALL_SIZE, vx: 0, vy: 0 };
   let blocks: Block[] = [];
+  // Cuántos bloques quedan vivos. Antes el fin de nivel se detectaba con un
+  // `blocks.every(...)` por fotograma, o sea hasta 60 iteraciones por fotograma
+  // para responder a una pregunta que solo cambia cuando cae un bloque.
+  let bloquesVivos = 0;
   let particles: Particle[] = [];
+  // La muralla cacheada, y si hay que repintarla. Viven en el closure y no a
+  // nivel de módulo: en Next un global sobrevive entre montajes y dos partidas
+  // se pasarían la muralla de la otra. Se sueltan en destroy().
+  let muro: HTMLCanvasElement | null = null;
+  let ctxMuro: CanvasRenderingContext2D | null = null;
+  let muroSucio = true;
   let score = 0;
   let lives = START_LIVES;
   let level = 1;
@@ -913,6 +986,9 @@ export const createArkanoidGame: GameFactory = (
       color: definition.color,
       alive: true,
     }));
+    bloquesVivos = blocks.length;
+    // Muralla nueva: la cacheada ya no sirve.
+    muroSucio = true;
     particles = [];
     resetBall();
   }
@@ -994,6 +1070,12 @@ export const createArkanoidGame: GameFactory = (
       setScore(score + BLOCK_POINTS * level);
       spawnParticles(block);
     }
+    if (outcome.broken.length > 0) {
+      bloquesVivos -= outcome.broken.length;
+      // La muralla ha cambiado: la copia cacheada deja de valer y se repinta en
+      // el draw() de este mismo fotograma.
+      muroSucio = true;
+    }
 
     // Un disparo de cada efecto por frame como mucho, aunque el frame traiga
     // varios rebotes o varios bloques rotos. Con una sola voz el resultado
@@ -1007,12 +1089,19 @@ export const createArkanoidGame: GameFactory = (
     if (outcome.bounced) sfxRebote.play();
     if (outcome.broken.length > 0) sfxRomper.play();
 
+    // Se mueven y se compactan en el sitio. Antes era un `particles.filter(...)`
+    // después del bucle, que construía un array nuevo en CADA fotograma —600 en
+    // 600 fotogramas, medido instrumentando Array.prototype.filter— incluso sin
+    // ninguna partícula viva. El orden se conserva, así que se dibujan en la
+    // misma secuencia de siempre.
+    let vivas = 0;
     for (const particle of particles) {
       particle.x += particle.vx * dt;
       particle.y += particle.vy * dt;
       particle.elapsed += dtMs;
+      if (particle.elapsed < PARTICLE_MS) particles[vivas++] = particle;
     }
-    particles = particles.filter((particle) => particle.elapsed < PARTICLE_MS);
+    particles.length = vivas;
 
     // Perder la pelota manda sobre limpiar la muralla: si el último bloque cae
     // en el mismo frame en que la pelota se escapa, stepBall ya ha salido del
@@ -1021,12 +1110,55 @@ export const createArkanoidGame: GameFactory = (
       loseLife();
       return;
     }
-    if (blocks.every((block) => !block.alive)) advanceLevel();
+    // Con el contador, lo que antes era recorrer los 60 bloques en cada
+    // fotograma es una comparación. La cuenta solo cambia donde cambia la
+    // muralla: loadLevel() y el bloque de arriba.
+    if (bloquesVivos === 0) advanceLevel();
+  }
+
+  // Devuelve el canvas con la muralla ya pintada, repintándola solo si cambió
+  // (al cargar nivel y al romperse un bloque: 7 veces en 600 fotogramas, según
+  // la sonda de emisiones). El skin no la invalida porque no puede cambiar sin
+  // que el reproductor destruya y recree el motor entero.
+  //
+  // Devuelve null si el navegador no da contexto 2D para el canvas auxiliar, y
+  // entonces draw() pinta la muralla como antes: la caché abarata el fotograma,
+  // no es un requisito para jugar.
+  function muroDeCache(): HTMLCanvasElement | null {
+    if (!muro) {
+      // OffscreenCanvas no existe en jsdom y es reciente en Safari; un <canvas>
+      // suelto, sin insertar en el documento, hace exactamente lo mismo.
+      const aparte = document.createElement("canvas");
+      aparte.width = MURO_W;
+      aparte.height = MURO_H;
+      const contexto = aparte.getContext("2d");
+      if (!contexto) return null;
+      muro = aparte;
+      ctxMuro = contexto;
+      muroSucio = true;
+    }
+    if (muroSucio && ctxMuro) {
+      ctxMuro.clearRect(0, 0, MURO_W, MURO_H);
+      // El recorte se dibuja trasladado, así que drawBlocks sigue recibiendo las
+      // coordenadas de mundo de los bloques y pinta exactamente lo mismo que
+      // pintaba sobre el canvas principal: ni un desplazamiento de medio píxel.
+      ctxMuro.setTransform(1, 0, 0, 1, -MURO_X, -MURO_Y);
+      drawBlocks(ctxMuro, blocks, paleta);
+      ctxMuro.setTransform(1, 0, 0, 1, 0, 0);
+      muroSucio = false;
+    }
+    return muro;
   }
 
   function draw() {
     drawBackground(ctx, paleta);
-    drawBlocks(ctx, blocks, paleta);
+    // Un drawImage en vez de hasta 120 fillRect con shadowBlur. Copiar un
+    // recorte con alfa sobre el fondo da el mismo resultado que pintar los
+    // bloques encima: «source-over» es asociativo, así que los halos se solapan
+    // entre sí igual que antes.
+    const cache = muroDeCache();
+    if (cache) ctx.drawImage(cache, MURO_X, MURO_Y);
+    else drawBlocks(ctx, blocks, paleta);
     drawParticles(ctx, particles, paleta);
     drawPaddle(ctx, paddle, paleta);
     drawBall(ctx, ball, paleta);
@@ -1100,6 +1232,12 @@ export const createArkanoidGame: GameFactory = (
       input.detach();
       sfxRebote.destroy();
       sfxRomper.destroy();
+      // La caché del muro es lo único del closure que ocupa memoria de verdad
+      // (704×208 px ≈ 570 KB de bitmap): se suelta aquí, como los dos efectos.
+      // Queda sucia para que un motor reutilizado la repinte.
+      muro = null;
+      ctxMuro = null;
+      muroSucio = true;
     },
   };
 };

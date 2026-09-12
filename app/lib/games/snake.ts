@@ -593,15 +593,21 @@ function drawSerpiente(
   // dirección de un vistazo cuando la cola cruza media pantalla.
   const cx = cabeza.col * CELL + CELL / 2;
   const cy = cabeza.row * CELL + CELL / 2;
-  const perp = { dc: -dir.dr, dr: dir.dc }; // perpendicular a la marcha
+  // Perpendicular a la marcha, en dos números sueltos y no en un objeto; y el
+  // recorrido de los dos lados con un for numérico en vez de `for (const lado of
+  // [1, -1])`. Eran las dos únicas allocations del camino de dibujo —un objeto y
+  // un array por fotograma, ~1200 en 600 fotogramas— y el mismo orden (primero
+  // +1, después −1) se conserva: los dos fillRect salen idénticos.
+  const perpDc = -dir.dr;
+  const perpDr = dir.dc;
   const AVANCE = CELL * 0.16; // hacia el morro
   const SEPARACION = CELL * 0.2; // a cada lado del eje
   const OJO = Math.round(CELL * 0.18);
 
   ctx.fillStyle = paleta.ojo;
-  for (const lado of [1, -1]) {
-    const ox = cx + dir.dc * AVANCE + perp.dc * SEPARACION * lado;
-    const oy = cy + dir.dr * AVANCE + perp.dr * SEPARACION * lado;
+  for (let lado = 1; lado >= -1; lado -= 2) {
+    const ox = cx + dir.dc * AVANCE + perpDc * SEPARACION * lado;
+    const oy = cy + dir.dr * AVANCE + perpDr * SEPARACION * lado;
     ctx.fillRect(Math.round(ox - OJO / 2), Math.round(oy - OJO / 2), OJO, OJO);
   }
 }
@@ -714,6 +720,47 @@ export const createSnakeGame: GameFactory = (
   // closure, como todo lo demás, así que dos motores con skins distintos no se
   // pisan.
   const paleta = paletaDe(SKINS_SERPENTINA, skin);
+
+  // ── Caché del fondo ─────────────────────────────────────────────────────────
+  //
+  // El fondo y la rejilla son ESTÁTICOS: dependen solo de la paleta —que se fija
+  // al montar— y de CELL/COLS/ROWS, que son constantes. Retrazarlos costaba
+  // **111 de las 148 llamadas al contexto de cada fotograma** (1 fillRect +
+  // beginPath + 54 moveTo + 54 lineTo + stroke: las 31 verticales y las 23
+  // horizontales). Pintados una vez en un lienzo aparte y copiados con un solo
+  // drawImage, el fotograma medido baja de 148 a 38 llamadas (−74 %) y de 8 a 6
+  // asignaciones de color.
+  //
+  // Se crea PEREZOSAMENTE, en el primer draw(): el reproductor monta el motor al
+  // entrar en la pantalla y lo vuelve a montar cada vez que se cambia de skin en
+  // el overlay de arranque, así que un motor que nunca llega a dibujar no paga
+  // la caché.
+  //
+  // Cuándo se invalida: nunca mientras el motor vive. Nada de lo que dibuja
+  // cambia durante la partida, y cambiar de skin no la toca porque destruye y
+  // recrea el motor entero. Vive en el closure —a nivel de módulo sobreviviría
+  // entre montajes, igual que el resto del estado— y se suelta en destroy().
+  let fondoCache: HTMLCanvasElement | null = null;
+
+  // OffscreenCanvas no existe en jsdom, así que el lienzo es un <canvas> suelto
+  // que NO se añade al documento: el motor no toca el DOM más allá del canvas
+  // que recibe.
+  function cacheDelFondo(): HTMLCanvasElement | null {
+    if (fondoCache) return fondoCache;
+    const lienzo = document.createElement("canvas");
+    lienzo.width = W;
+    lienzo.height = H;
+    const ctxCache = lienzo.getContext("2d");
+    // Sin contexto 2D no hay caché posible: draw() se queda en el camino de
+    // siempre en vez de dejar la pantalla en negro.
+    if (!ctxCache) return null;
+    // El MISMO drawFondo, solo sobre otro contexto. La caché contiene
+    // exactamente los píxeles que antes iban al canvas principal, fondo opaco
+    // incluido, así que copiarla encima da el mismo resultado.
+    drawFondo(ctxCache, paleta);
+    fondoCache = lienzo;
+    return fondoCache;
+  }
 
   const input = new Input();
 
@@ -871,7 +918,10 @@ export const createSnakeGame: GameFactory = (
   }
 
   function draw() {
-    drawFondo(ctx, paleta);
+    // Un drawImage en vez de las 111 llamadas de drawFondo (ver cacheDelFondo).
+    const fondo = cacheDelFondo();
+    if (fondo) ctx.drawImage(fondo, 0, 0);
+    else drawFondo(ctx, paleta);
     if (fruta) drawFruta(ctx, paleta, fruta, spriteListo ? sprite : null);
     if (snake.length > 0) drawSerpiente(ctx, paleta, snake, dir);
   }
@@ -938,6 +988,10 @@ export const createSnakeGame: GameFactory = (
       stopLoop();
       input.detach();
       if (sprite) sprite.onload = null;
+      // El lienzo de la caché es 800×600 (≈1,9 MB de píxeles): soltarlo aquí es
+      // de lo mismo que cancelar el rAF, porque el reproductor remonta el motor
+      // cada vez que se cambia de skin en el overlay.
+      fondoCache = null;
     },
   };
 };

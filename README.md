@@ -54,7 +54,7 @@ npm run dev            # http://localhost:3000
 ```
 
 Las pruebas son **Vitest sobre jsdom** y cubren los motores de juego:
-`npm run test:run` hace una pasada (177 pruebas) y `npm test` se queda en modo
+`npm run test:run` hace una pasada (348 pruebas) y `npm test` se queda en modo
 watch.
 
 ### Variables de entorno

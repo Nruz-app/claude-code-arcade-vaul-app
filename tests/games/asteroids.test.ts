@@ -18,11 +18,34 @@ import {
 import { verificaContrato } from "../harness/contrato";
 import { verificaMando } from "../harness/mando";
 import { montaMotor, pulsa, suelta } from "../harness/motor";
+import { verificaRendimiento } from "../harness/rendimiento";
 import { verificaSkins } from "../harness/skins";
 
 verificaContrato("ROCAS", createAsteroidsGame);
 verificaSkins("ROCAS", createAsteroidsGame, SKINS_ROCAS);
 verificaMando("ROCAS", "rocas", createAsteroidsGame);
+
+// Presupuesto medido el 2026-09-11, con las opciones por defecto de la suite (60
+// fotogramas de calentamiento, 20 medidos). Esa ventana es la tranquila —la nave
+// no dispara, así que hay cuatro rocas y nada más—: 67 llamadas de dibujo y 3
+// asignaciones de color en el fotograma más caro, 0 emisiones y ~40 KB. Antes de
+// subir el estado de cada grupo a draw() y de cambiar save()/restore() por
+// setTransform() eran 80 y 6 con el mismo escenario, y 174,9 y 15,3 de media en
+// una partida de verdad (nave acelerando, un disparo cada 12 fotogramas, ocho
+// rocas y ~18 partículas), que ahora cuesta 149,9 y 6,5.
+//
+// El techo de dibujo no es el medido + 25 % sino el PEOR caso posible de la
+// ventana: cada roca se dibuja con entre 8 y 13 vértices al azar, así que cuatro
+// rocas y la nave con llama pueden llegar a ~91 llamadas sin que nada vaya mal.
+// El que de verdad muerde aquí es `coloresPorFrame`: en esta ventana solo hay
+// cuatro colores posibles (fondo, roca, nave, propulsor) porque el color es del
+// grupo y no de la entidad; volver a asignarlo por roca lo rompe al instante.
+verificaRendimiento("ROCAS", createAsteroidsGame, {
+  dibujoPorFrame: 110,
+  coloresPorFrame: 6,
+  emisionesEn600: 8,
+  heapKbEn600: 300,
+});
 
 describe("ROCAS: resolución", () => {
   it("usa el canvas de 800×600 que fija el reproductor", () => {

@@ -1,7 +1,7 @@
 // ===== app/lib/games/registry.ts =====
 // Qué juegos tienen motor real. La clave es el id de GAMES (app/lib/data.ts).
 // Lo que no esté aquí cae en el reproductor simulado, que es lo que hoy usan
-// los otros tres juegos del catálogo (gloton, invasores y duelo-pixel).
+// los otros dos juegos del catálogo (invasores y duelo-pixel).
 //
 // Es Partial a propósito: al indexar con un id cualquiera el tipo resultante es
 // GameFactory | undefined, así que el despachador está obligado a comprobarlo.
@@ -9,6 +9,7 @@
 import { SKINS_BLOQUE_BUSTER, createArkanoidGame } from "./arkanoid";
 import { SKINS_ROCAS, createAsteroidsGame } from "./asteroids";
 import { SKINS_RANARIA, createFroggerGame } from "./frogger";
+import { createPacmanGame } from "./pacman";
 import type { FichaDeSkins } from "./skins";
 import { SKINS_SERPENTINA, createSnakeGame } from "./snake";
 import { SKINS_CAIDA, createTetrisGame } from "./tetris";
@@ -20,6 +21,7 @@ export const GAME_ENGINES: Partial<Record<string, GameFactory>> = {
   "bloque-buster": createArkanoidGame,
   serpentina: createSnakeGame,
   ranaria: createFroggerGame,
+  gloton: createPacmanGame,
 };
 
 // Qué motores tienen paletas de skin declaradas. Sigue el mismo patrón que
@@ -30,6 +32,10 @@ export const GAME_ENGINES: Partial<Record<string, GameFactory>> = {
 //
 // En tiempo de ejecución el motor NO lee de aquí: resuelve su propia paleta a
 // partir del skin que recibe. Este mapa es para la plataforma.
+// GLOTÓN no está en este mapa A PROPÓSITO (SPEC 18): tiene un solo aspecto, el
+// clásico, así que no declara FichaDeSkins y el reproductor no le enseña el
+// selector. No es un olvido; añadirlo aquí sacaría un selector de tres opciones
+// que pintarían lo mismo.
 export const GAME_PALETAS: Partial<Record<string, FichaDeSkins<string>>> = {
   rocas: SKINS_ROCAS,
   "bloque-buster": SKINS_BLOQUE_BUSTER,
@@ -80,6 +86,13 @@ export const GAME_CONTROLS: Partial<Record<string, readonly ControlHint[]>> = {
   ranaria: [
     ["← → ↑ ↓", "SALTAR"],
     ["W A S D", "SALTAR"],
+    ["ESC", "PAUSA"],
+  ],
+  // GLOTÓN tampoco usa ESPACIO: Pac-Man solo se mueve, así que la tecla que
+  // abre la partida desde el overlay no hace nada dentro.
+  gloton: [
+    ["← → ↑ ↓", "MOVER"],
+    ["W A S D", "MOVER"],
     ["ESC", "PAUSA"],
   ],
 };
@@ -182,6 +195,17 @@ export const GAME_TOUCH: Partial<Record<string, MandoDeJuego>> = {
       derecha: { code: "ArrowRight", accion: "Saltar a la derecha" },
       arriba: { code: "ArrowUp", accion: "Saltar hacia arriba" },
       abajo: { code: "ArrowDown", accion: "Saltar hacia atrás" },
+    },
+    acciones: [],
+  },
+  // Sin botones de acción: Pac-Man no dispara ni salta, solo elige por dónde
+  // seguir. Y sin arrastre, que solo lo tiene BLOQUE BUSTER.
+  gloton: {
+    cruceta: {
+      izquierda: { code: "ArrowLeft", accion: "Ir a la izquierda" },
+      derecha: { code: "ArrowRight", accion: "Ir a la derecha" },
+      arriba: { code: "ArrowUp", accion: "Ir hacia arriba" },
+      abajo: { code: "ArrowDown", accion: "Ir hacia abajo" },
     },
     acciones: [],
   },

@@ -15,11 +15,29 @@ import {
 import { verificaContrato } from "../harness/contrato";
 import { verificaMando } from "../harness/mando";
 import { montaMotor, pulsa, suelta } from "../harness/motor";
+import { verificaRendimiento } from "../harness/rendimiento";
 import { verificaSkins } from "../harness/skins";
 
 verificaContrato("CAÍDA", createTetrisGame);
 verificaSkins("CAÍDA", createTetrisGame, SKINS_CAIDA);
 verificaMando("CAÍDA", "caida", createTetrisGame);
+
+// Presupuesto medido el 2026-09-11 con las opciones por defecto de la suite
+// (60 fotogramas de calentamiento, 20 medidos): 47 llamadas de dibujo y 11
+// asignaciones de color en el fotograma más caro de doce corridas, 0 emisiones
+// en 600 fotogramas y ≤97 KB retenidos. Antes de cachear el fondo del pozo y de
+// agrupar el color por celda eran 89 y 31 (y 217 y 175 con el pozo a medio
+// llenar). Los techos llevan holgura para que no los mueva el azar de la pieza
+// —la tuerca son ocho celdas, el doble que cualquier otra—, pero siguen por
+// debajo de lo que costaba el motor antes: una regresión de las de verdad
+// (volver a trazar la rejilla cada fotograma, reasignar el color por celda) los
+// rompe.
+verificaRendimiento("CAÍDA", createTetrisGame, {
+  dibujoPorFrame: 80,
+  coloresPorFrame: 18,
+  emisionesEn600: 20,
+  heapKbEn600: 400,
+});
 
 describe("CAÍDA: resolución", () => {
   it("usa el canvas de 800×600 aunque el tablero sea de 300×600", () => {

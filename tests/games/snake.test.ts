@@ -11,11 +11,28 @@ import { H, SKINS_SERPENTINA, W, createSnakeGame } from "@/app/lib/games/snake";
 import { verificaContrato } from "../harness/contrato";
 import { verificaMando } from "../harness/mando";
 import { montaMotor, pulsa } from "../harness/motor";
+import { verificaRendimiento } from "../harness/rendimiento";
 import { verificaSkins } from "../harness/skins";
 
 verificaContrato("SERPENTINA", createSnakeGame);
 verificaSkins("SERPENTINA", createSnakeGame, SKINS_SERPENTINA);
 verificaMando("SERPENTINA", "serpentina", createSnakeGame);
+
+// Presupuesto medido el 2026-09-11 (fotograma 80, serpiente de 3 segmentos):
+// 38 llamadas de dibujo y 6 asignaciones de color por fotograma, 1 emisión en
+// 600 fotogramas. Antes de cachear el fondo eran 148 y 8.
+//
+// Los techos llevan holgura sobre lo medido, no son objetivos: el de dibujo
+// absorbe que la serpiente crezca hasta 3 segmentos si come dentro de la
+// ventana (+24 llamadas) y sigue pillando de sobra una vuelta a retrazar la
+// rejilla entera. El de heap está por encima del ruido del runner, que en esta
+// máquina va de −155 a +286 KB: solo caza una regresión de orden de magnitud.
+verificaRendimiento("SERPENTINA", createSnakeGame, {
+  dibujoPorFrame: 72,
+  coloresPorFrame: 8,
+  emisionesEn600: 20,
+  heapKbEn600: 600,
+});
 
 describe("SERPENTINA: resolución", () => {
   it("usa el canvas de 800×600 que fija el reproductor", () => {

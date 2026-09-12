@@ -28,7 +28,8 @@ _Sugerencias del agente sin visto bueno. Al aprobarse suben a «Siguiente»; al 
 bajan a «Descartado» con el motivo._
 
 **Roadmap** (2026-08-13). El orden es el de puntuación. Era de cinco; RANARIA, que iba
-primera, ya está hecha y ha bajado a «Hecho», así que quedan cuatro:
+primera, ya está hecha y ha bajado a «Hecho», y GLOTÓN también (SPEC 18, el 2026-09-11),
+así que quedan tres:
 
 1. - [ ] **FLUJO** (`flujo`) — Pipe Mania. 33/35. **No está en `GAMES`**: hay que crear la
         entrada del catálogo y la portada `cover-flujo`. Sería el **segundo PUZZLE**, la
@@ -36,10 +37,7 @@ primera, ya está hecha y ha bajado a «Hecho», así que quedan cuatro:
         · _sugerido: 2026-08-13_ · spec: —
 2. - [ ] **INVASORES** (`invasores`) — Space Invaders. 31/35. Barato y clásico, pero repite
         el «nave que dispara» de ROCAS y quiere `ESPACIO`. · _sugerido: 2026-08-13_ · spec: —
-3. - [ ] **GLOTÓN** (`gloton`) — Pac-Man. 31/35. El de más valor de la lista y el más caro:
-        laberinto + IA de cuatro fantasmas. Súbelo al primer puesto si lo que se busca es un
-        juego grande. · _sugerido: 2026-08-13_ · spec: —
-4. - [ ] **DUELO PIXEL** (`duelo-pixel`) — Pong. 28/35. **Bloqueado por diseño**: su marcador
+3. - [ ] **DUELO PIXEL** (`duelo-pixel`) — Pong. 28/35. **Bloqueado por diseño**: su marcador
         0–11 no compara con el resto del Salón. Antes de implementarlo hay que inventarle una
         métrica acumulativa. · _sugerido: 2026-08-13_ · spec: —
 
@@ -57,6 +55,9 @@ _No se vuelven a proponer salvo que cambie algo concreto, y entonces hay que dec
 - [x] **SERPENTINA** (`serpentina`) — Snake. Primero desde cero y primero con sprites. · spec: 10
 - [x] **RANARIA** (`ranaria`) — Frogger. Primera spec del agente `game-jam` y primer juego con
       sonido. · spec: `specs/game-jam/ranaria/` + 11
+- [x] **GLOTÓN** (`gloton`) — Pac-Man. El más caro del roadmap y el primero con IA de
+      adversarios. Primer motor con **un solo aspecto**: sin ficha de skins ni selector.
+      · spec: 18
 
 ---
 

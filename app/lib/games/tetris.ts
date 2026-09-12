@@ -513,45 +513,85 @@ const PREVIEW_BOX = 4 * PREVIEW_BLOCK; // el marco es de 4×4 celdas
 const LABEL_FONT = 'bold 11px ui-monospace, "Courier New", monospace';
 const VALUE_FONT = 'bold 20px ui-monospace, "Courier New", monospace';
 
-// Un bloque, en píxeles absolutos del canvas. El +1/−2 deja una junta oscura
-// entre celdas contiguas y la banda superior clara simula el relieve del
-// original.
+// Una celda se pinta en dos trozos: el cuerpo, del color de la pieza, y una
+// banda superior clara que simula el relieve del original. El +1/−2 deja una
+// junta oscura entre celdas contiguas.
 //
-// La paleta baja por argumento hasta aquí, como en asteroids.ts: capturarla a
-// nivel de módulo sería estado compartido entre montajes, que es justo lo que
-// prohíbe la invariante nº 1 del contrato.
-function drawCell(
+// Antes los dos trozos vivían en una sola función (`drawCell`) que asignaba
+// `fillStyle` dos veces y `globalAlpha` dos veces POR CELDA. Con el pozo a
+// medio llenar eso eran 140 escrituras de `fillStyle` y 136 de `globalAlpha` en
+// un fotograma (medido con el desglose de tests/harness/rendimiento.ts), y cada
+// una invalida el estado del contexto. Ahora el color lo pone quien llama —una
+// vez por grupo de celdas del mismo color— y el cuerpo y la banda van en
+// pasadas separadas, porque `brillo` es el MISMO color en todas las celdas del
+// fotograma.
+//
+// Separarlo es válido píxel a píxel porque los rectángulos de dos celdas
+// distintas nunca se solapan: los dos van metidos 1 px dentro de su celda, y la
+// banda cae siempre encima del cuerpo de SU celda.
+
+// Alto de la banda de relieve. Misma expresión que tenía drawCell: 4 px con
+// BLOCK (28) y 3 px con PREVIEW_BLOCK (22).
+function altoDeBanda(size: number): number {
+  return Math.max(2, Math.round(size * 0.14));
+}
+
+function cuerpoDeCelda(
   ctx: CanvasRenderingContext2D,
-  paleta: PaletaCaida,
   px: number,
   py: number,
-  type: number,
   size: number,
-  alpha = 1,
 ): void {
-  const rol = ROL_DE_PIEZA[type - 1];
-  if (!rol) return;
-
-  ctx.globalAlpha = alpha;
-  ctx.fillStyle = paleta[rol];
   ctx.fillRect(px + 1, py + 1, size - 2, size - 2);
-  ctx.fillStyle = paleta.brillo;
-  ctx.fillRect(px + 1, py + 1, size - 2, Math.max(2, Math.round(size * 0.14)));
-  ctx.globalAlpha = 1;
+}
+
+function bandaDeCelda(
+  ctx: CanvasRenderingContext2D,
+  px: number,
+  py: number,
+  size: number,
+): void {
+  ctx.fillRect(px + 1, py + 1, size - 2, altoDeBanda(size));
 }
 
 // Fondo y borde del área de juego. El original no lo necesita porque su canvas
 // es exactamente el tablero; aquí el pozo flota dentro de 800×600 y sin marco
 // no se distinguiría del vacío.
-export function drawWell(
+//
+// Partido en dos porque el motor cachea el interior del pozo en un canvas
+// aparte y sigue trazando el marco en directo (ver `pozoCacheado`). Se conserva
+// `drawWell`, que pinta los dos como siempre.
+//
+// La paleta baja por argumento hasta aquí, como en asteroids.ts: capturarla a
+// nivel de módulo sería estado compartido entre montajes, que es justo lo que
+// prohíbe la invariante nº 1 del contrato.
+export function drawWellFondo(
   ctx: CanvasRenderingContext2D,
   paleta: PaletaCaida,
 ): void {
   ctx.fillStyle = paleta.pozo;
   ctx.fillRect(BOARD_X, BOARD_Y, COLS * BLOCK, ROWS * BLOCK);
+}
+
+// El trazo de 2 px va centrado en el camino, así que cubre las columnas 184-185
+// y 466-467 y las filas 18-19 y 580-581: ni un píxel del interior del pozo
+// (186-465 × 20-579). Por eso puede dibujarse después de la rejilla sin que
+// cambie nada de lo que se ve.
+export function drawWellMarco(
+  ctx: CanvasRenderingContext2D,
+  paleta: PaletaCaida,
+): void {
   ctx.strokeStyle = paleta.borde;
   ctx.lineWidth = 2;
   ctx.strokeRect(BOARD_X - 1, BOARD_Y - 1, COLS * BLOCK + 2, ROWS * BLOCK + 2);
+}
+
+export function drawWell(
+  ctx: CanvasRenderingContext2D,
+  paleta: PaletaCaida,
+): void {
+  drawWellFondo(ctx, paleta);
+  drawWellMarco(ctx, paleta);
 }
 
 // El medio píxel evita que una línea de 1 px quede repartida entre dos
@@ -576,23 +616,42 @@ export function drawGrid(
   ctx.stroke();
 }
 
+// Dos pasadas sobre el tablero: cuerpos primero, agrupando las celdas
+// consecutivas del mismo color, y las bandas de relieve después con un único
+// `fillStyle`. El número de `fillRect` es exactamente el mismo que antes —son
+// los mismos rectángulos, en el mismo sitio—; lo que baja son las escrituras de
+// estado del contexto.
 export function drawBoard(
   ctx: CanvasRenderingContext2D,
   paleta: PaletaCaida,
   board: Board,
 ): void {
+  // Una celda vacía es 0, así que el índice sale −1 y el rol, undefined: la
+  // misma comprobación descarta el hueco y un valor fuera de rango.
+  let ultimo = "";
   for (let r = 0; r < ROWS; r++) {
+    const fila = board[r];
     for (let c = 0; c < COLS; c++) {
-      const cell = board[r][c];
-      if (cell === EMPTY) continue;
-      drawCell(
-        ctx,
-        paleta,
-        BOARD_X + c * BLOCK,
-        BOARD_Y + r * BLOCK,
-        cell,
-        BLOCK,
-      );
+      const rol = ROL_DE_PIEZA[fila[c] - 1];
+      if (!rol) continue;
+      const color = paleta[rol];
+      if (color !== ultimo) {
+        ctx.fillStyle = color;
+        ultimo = color;
+      }
+      cuerpoDeCelda(ctx, BOARD_X + c * BLOCK, BOARD_Y + r * BLOCK, BLOCK);
+    }
+  }
+
+  // Con el tablero vacío no se toca el contexto ni una vez.
+  if (ultimo === "") return;
+
+  ctx.fillStyle = paleta.brillo;
+  for (let r = 0; r < ROWS; r++) {
+    const fila = board[r];
+    for (let c = 0; c < COLS; c++) {
+      if (!ROL_DE_PIEZA[fila[c] - 1]) continue;
+      bandaDeCelda(ctx, BOARD_X + c * BLOCK, BOARD_Y + r * BLOCK, BLOCK);
     }
   }
 }
@@ -607,23 +666,55 @@ export function drawPiece(
   atY: number,
   alpha = 1,
 ): void {
-  for (let r = 0; r < piece.shape.length; r++) {
-    for (let c = 0; c < piece.shape[r].length; c++) {
-      const cell = piece.shape[r][c];
-      if (!cell) continue;
-      const y = atY + r;
-      if (y < 0 || y >= ROWS) continue;
-      drawCell(
+  const shape = piece.shape;
+  // `globalAlpha` solo se toca cuando el alfa NO es 1, que es el valor por
+  // defecto del contexto y el que tiene al entrar aquí: antes se escribía dos
+  // veces por celda incluso para la pieza opaca. El fantasma (0.2) sigue
+  // entrando y saliendo de su alfa, pero una vez por pieza y no por celda.
+  const opaca = alpha === 1;
+  if (!opaca) ctx.globalAlpha = alpha;
+
+  let ultimo = "";
+  for (let r = 0; r < shape.length; r++) {
+    const fila = shape[r];
+    const y = atY + r;
+    if (y < 0 || y >= ROWS) continue;
+    for (let c = 0; c < fila.length; c++) {
+      const rol = ROL_DE_PIEZA[fila[c] - 1];
+      if (!rol) continue;
+      const color = paleta[rol];
+      if (color !== ultimo) {
+        ctx.fillStyle = color;
+        ultimo = color;
+      }
+      cuerpoDeCelda(
         ctx,
-        paleta,
         BOARD_X + (piece.x + c) * BLOCK,
         BOARD_Y + y * BLOCK,
-        cell,
         BLOCK,
-        alpha,
       );
     }
   }
+
+  if (ultimo !== "") {
+    ctx.fillStyle = paleta.brillo;
+    for (let r = 0; r < shape.length; r++) {
+      const fila = shape[r];
+      const y = atY + r;
+      if (y < 0 || y >= ROWS) continue;
+      for (let c = 0; c < fila.length; c++) {
+        if (!ROL_DE_PIEZA[fila[c] - 1]) continue;
+        bandaDeCelda(
+          ctx,
+          BOARD_X + (piece.x + c) * BLOCK,
+          BOARD_Y + y * BLOCK,
+          BLOCK,
+        );
+      }
+    }
+  }
+
+  if (!opaca) ctx.globalAlpha = 1;
 }
 
 // Panel derecho: la pieza que viene y las líneas hechas. Las líneas se dibujan
@@ -647,25 +738,50 @@ export function drawPanel(
   ctx.strokeRect(PANEL_X + 0.5, boxY + 0.5, PREVIEW_BOX, PREVIEW_BOX);
 
   // Centrado dentro del recuadro de 4×4, que es la pieza más ancha (la I).
+  // Mismas dos pasadas que drawBoard: cuerpos y después las bandas.
   const shape = next.shape;
   const offX = (4 - shape[0].length) / 2;
   const offY = (4 - shape.length) / 2;
+  let ultimo = "";
   for (let r = 0; r < shape.length; r++) {
-    for (let c = 0; c < shape[r].length; c++) {
-      const cell = shape[r][c];
-      if (!cell) continue;
-      drawCell(
+    const fila = shape[r];
+    for (let c = 0; c < fila.length; c++) {
+      const rol = ROL_DE_PIEZA[fila[c] - 1];
+      if (!rol) continue;
+      const color = paleta[rol];
+      if (color !== ultimo) {
+        ctx.fillStyle = color;
+        ultimo = color;
+      }
+      cuerpoDeCelda(
         ctx,
-        paleta,
         PANEL_X + (offX + c) * PREVIEW_BLOCK,
         boxY + (offY + r) * PREVIEW_BLOCK,
-        cell,
         PREVIEW_BLOCK,
       );
     }
   }
+  if (ultimo !== "") {
+    ctx.fillStyle = paleta.brillo;
+    for (let r = 0; r < shape.length; r++) {
+      const fila = shape[r];
+      for (let c = 0; c < fila.length; c++) {
+        if (!ROL_DE_PIEZA[fila[c] - 1]) continue;
+        bandaDeCelda(
+          ctx,
+          PANEL_X + (offX + c) * PREVIEW_BLOCK,
+          boxY + (offY + r) * PREVIEW_BLOCK,
+          PREVIEW_BLOCK,
+        );
+      }
+    }
+  }
 
-  ctx.font = LABEL_FONT;
+  // Aquí había un tercer `ctx.font = LABEL_FONT` por fotograma. Es el que
+  // estaba de más: nada entre el de arriba y este toca la fuente —las celdas
+  // del preview solo rellenan rectángulos—, así que reasignarla solo invalidaba
+  // el estado del contexto. Quedan dos escrituras de fuente por fotograma, y
+  // son las dos imprescindibles (etiqueta y valor son tamaños distintos).
   ctx.fillStyle = paleta.etiqueta;
   ctx.fillText("LÍNEAS", PANEL_X, boxY + PREVIEW_BOX + 46);
 
@@ -851,12 +967,66 @@ export const createTetrisGame: GameFactory = (
     }
   }
 
+  // ── Caché del fondo del pozo ───────────────────────────────────────────────
+  //
+  // El relleno del pozo y las 28 líneas de la rejilla eran 60 de las 89
+  // llamadas al contexto de un fotograma con el tablero vacío (medido con
+  // tests/harness/rendimiento.ts), y no cambian NUNCA: dependen solo de la
+  // paleta, que se resuelve al montar —cambiar de skin destruye y recrea el
+  // motor entero—. Se pintan una vez en un canvas aparte y cada fotograma se
+  // copian con un único `drawImage`.
+  //
+  // Se cachea SOLO el interior del pozo (280×560), que es 100 % opaco: así el
+  // blit es exacto, sin escalado ni mezcla de alfa. El marco
+  // —rgba(0,245,255,0.18) sobre el vacío del canvas— se sigue trazando en
+  // directo: guardar píxeles translúcidos en un canvas intermedio los almacena
+  // premultiplicados a 8 bits y eso sí podría mover un ±1 en el borde. El marco
+  // no toca ni un píxel del interior (ver drawWellMarco), así que pintarlo
+  // después de la rejilla da exactamente la misma imagen que antes.
+  //
+  // Vive en el closure, no a nivel de módulo (invariante nº 1), y se suelta en
+  // destroy(). Se crea en el primer draw() y no en el preámbulo, para que montar
+  // el motor sin llegar a dibujar no reserve nada. OffscreenCanvas no se usa a
+  // propósito: no existe en jsdom, y aquí no hace falta.
+  //
+  // Invalidación: no hay ninguna, porque nada de lo que pinta cambia durante la
+  // vida del motor. Lo único que la rompería es que alguien escalara el
+  // contexto principal —hoy el reproductor no aplica devicePixelRatio—: con un
+  // ctx.scale(dpr, dpr) activo, este canvas habría que crearlo también a
+  // resolución de dispositivo o el pozo saldría borroso.
+  let fondoPozo: HTMLCanvasElement | null = null;
+
+  function pozoCacheado(): HTMLCanvasElement | null {
+    if (fondoPozo) return fondoPozo;
+    const cache = canvas.ownerDocument.createElement("canvas");
+    cache.width = COLS * BLOCK;
+    cache.height = ROWS * BLOCK;
+    const cacheCtx = cache.getContext("2d");
+    // Sin contexto no se cachea nada y se dibuja en directo, como siempre.
+    if (!cacheCtx) return null;
+    // El traslado es por enteros, así que el medio píxel de la rejilla cae
+    // donde caía: mismas columnas y filas de píxeles.
+    cacheCtx.translate(-BOARD_X, -BOARD_Y);
+    drawWellFondo(cacheCtx, paleta);
+    drawGrid(cacheCtx, paleta);
+    fondoPozo = cache;
+    return fondoPozo;
+  }
+
   // Se limpia en vez de pintar un fondo opaco: así el área que rodea al pozo
   // deja ver el fondo del marco CRT en lugar de un rectángulo negro pegado.
+  // (Y es la razón de que este motor no pueda pedir `{ alpha: false }` al
+  // contexto, que sí sería gratis en los otros cinco.)
   function draw() {
     ctx.clearRect(0, 0, W, H);
-    drawWell(ctx, paleta);
-    drawGrid(ctx, paleta);
+    const fondo = pozoCacheado();
+    if (fondo) {
+      ctx.drawImage(fondo, BOARD_X, BOARD_Y);
+      drawWellMarco(ctx, paleta);
+    } else {
+      drawWell(ctx, paleta);
+      drawGrid(ctx, paleta);
+    }
     drawBoard(ctx, paleta, board);
     if (state !== "gameover") {
       drawPiece(ctx, paleta, current, ghostY(board, current), 0.2);
@@ -924,6 +1094,14 @@ export const createTetrisGame: GameFactory = (
     destroy() {
       stopLoop();
       input.detach();
+      // La caché del pozo se suelta aquí, como el resto del estado del closure:
+      // son 280×560 px de memoria de vídeo que no tiene por qué sobrevivir al
+      // desmontaje. Poner el tamaño a cero libera el búfer sin esperar al GC.
+      if (fondoPozo) {
+        fondoPozo.width = 0;
+        fondoPozo.height = 0;
+        fondoPozo = null;
+      }
     },
   };
 };

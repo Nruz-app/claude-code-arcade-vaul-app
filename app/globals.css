@@ -943,6 +943,25 @@ a {
   margin-top: 6px;
   text-shadow: 0 0 6px rgba(0, 245, 255, 0.5);
 }
+/* La tira de tres columnas es lo que decidía el ancho MÍNIMO de toda la ficha:
+   sus celdas son `1fr` con `min-width: auto`, así que el valor más largo de la
+   fila —en Press Start 2P, que es de ancho fijo— empuja a las tres. Medido en
+   /juego/gloton a 320x568: min-content 338 px contra 288 de hueco, y como
+   `.av-detail` no puede crecer, los 50 px sobrantes se salían del elemento y
+   34 px del viewport, cortando a media palabra la descripción y la etiqueta
+   «RETRO 1985». Con `body { overflow-x: hidden }` eso se recortaba en silencio.
+   Bajar el relleno a 12/8 y el valor a 13 px deja el min-content en 250 px, que
+   entra en los 288 con holgura. Afecta a las seis fichas —el valor de GLOTÓN,
+   96.400, es el segundo más ancho del catálogo tras los 184.220 de CAÍDA— y por
+   eso el corte es 520 y no algo más estrecho: CAÍDA desbordaba ya a 375. */
+@media (max-width: 520px) {
+  .stat-strip > div {
+    padding: 12px 8px;
+  }
+  .stat-strip .v {
+    font-size: 13px;
+  }
+}
 .detail-actions {
   display: flex;
   gap: 12px;
@@ -1067,6 +1086,17 @@ a {
   display: flex;
   gap: 10px;
 }
+/* PAUSA, FIN y SALIR miden 41 px de alto con el relleno del botón genérico. El
+   HUD compacto de la SPEC 14 ya los sube a 44 por debajo de 720 px, pero ese
+   umbral es de ancho: en una tableta o en un teléfono tumbado —medido a 844x390:
+   PAUSA 100x41, FIN 77x41, SALIR 100x41— se quedaban tres píxeles por debajo del
+   mínimo de área táctil, y FIN termina la partida. El mínimo va donde se decide,
+   que es con qué se señala. */
+@media (pointer: coarse) {
+  .hud-actions .btn {
+    min-height: 44px;
+  }
+}
 
 .crt {
   position: relative;
@@ -1144,6 +1174,23 @@ a {
   font-size: 8px;
   color: var(--ink-faint);
   letter-spacing: 0.16em;
+  /* Los tres rótulos son una sola línea en escritorio, pero en un móvil no caben
+     y cada uno se partía POR DENTRO, quedando entrelazados en dos renglones:
+     medido en /juego/gloton/jugar a 412x915 se leía «SEÑAL GLOTÓN · CRT-83
+     CARGA ·» y debajo «OK · 60 HZ 1MB». Con `flex-wrap`, el rótulo que no cabe
+     baja entero al renglón siguiente y solo se parte por dentro si ni él solo
+     cabe, que es el orden de lectura correcto.
+
+     Nada de `white-space: nowrap` aquí: se probó, y el rótulo central del juego
+     de nombre más largo —«BLOQUE BUSTER · CRT-83 · 60 HZ», 278 px— se salía de
+     los 210 de hueco a 320 px de ancho y llegaba a 341, o sea 21 px fuera del
+     viewport. Encogerse y partirse es justo lo que tiene que poder hacer.
+
+     Va fuera de toda media query a propósito: a partir de ~400 px de hueco los
+     tres caben en una línea y no cambia nada, así que el escritorio queda
+     idéntico. */
+  flex-wrap: wrap;
+  row-gap: 4px;
 }
 .crt-bottom .led {
   display: inline-flex;
@@ -1248,6 +1295,33 @@ a {
     margin-top: 20px;
     padding: 14px 28px;
     min-height: 48px;
+  }
+}
+
+/* Teléfonos estrechos: el overlay no cabe en la pantalla del CRT y `.crt-screen`
+   lleva `overflow: hidden`, así que se recortaba por arriba y por abajo sin
+   avisar. Medido en /juego/gloton/jugar a 320x568: la pantalla mide 210x158 y el
+   contenido del overlay 186, o sea 14 px comidos por cada lado — el titular
+   «TOCA PARA EMPEZAR» salía partido por la mitad y al botón EMPEZAR se le
+   cortaba el borde inferior, que es el único objetivo táctil explícito que hay
+   ahí. Con estos tamaños el contenido baja a 145 px y entra entero.
+
+   El corte es el mismo `(pointer: coarse) and (max-width: 420px)` que ya usa la
+   consola (SPEC 16): no hace falta uno nuevo, y por encima de él la pantalla ya
+   da de sí —a 375 mide 199 px de alto contra los 186 del contenido—. */
+@media (pointer: coarse) and (max-width: 420px) {
+  .game-start-tactil {
+    font-size: 14px;
+  }
+  .game-start .game-controls {
+    gap: 4px;
+    font-size: 9px;
+  }
+  .game-start-btn {
+    margin-top: 10px;
+    padding: 10px 20px;
+    /* Sigue por encima del mínimo de 44 px de área táctil. */
+    min-height: 44px;
   }
 }
 
@@ -1657,6 +1731,46 @@ a {
   }
   .consola::before {
     border-radius: 12px;
+  }
+}
+
+/* ── Teléfono en horizontal ────────────────────────────────────────────────
+   El apilado de la SPEC 17 mira solo el ANCHO, y en un teléfono tumbado el que
+   falta es el ALTO. Medido en /juego/gloton/jugar a 844x390: el chasis se
+   apilaba —844 está por debajo de 899.98—, la pantalla se llevaba todo el ancho
+   y salía de 714x536 px en una ventana de 390 de alto, así que no cabía entera
+   en ningún desplazamiento; y la cruceta quedaba 446 px por debajo del borde
+   inferior de la pantalla, de modo que jugar y ver el juego eran excluyentes.
+
+   Aquí el ancho sobra y lo que hay que recuperar es la disposición de costados,
+   que es justo la de escritorio: se deshace el apilado. Medido tras el cambio,
+   a 844x390: pantalla 312x234 y chasis de 356 px de alto, que cabe entero en la
+   ventana. 312 px de ancho está por debajo de los 438 que la SPEC 17 fijó como
+   mínimo jugable, pero ese mínimo se midió contra la alternativa de apilar, que
+   aquí no existe: apilado no cabe ni la pantalla sola.
+
+   El corte va por alto y no por ancho porque el defecto es de alto. Reutiliza
+   dos números de la escala del archivo —520 y 600— sin tocar 899.98, 420 ni el
+   apilado a 400: `max-height: 520px` deja fuera los cinco viewports verticales
+   del banco (el más bajo es 568) y el control de escritorio de 1440x900, y
+   `min-width: 600px` impide que esto se active en un móvil vertical con el
+   teclado abierto, donde el ancho tampoco daría para poner controles al lado. */
+@media (max-height: 520px) and (min-width: 600px) {
+  .consola {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 20px;
+    padding: 24px;
+  }
+  /* `order` también manda en una rejilla, así que el -1 del apilado dejaría la
+     pantalla en el costado izquierdo y la cruceta en medio. */
+  .consola-centro {
+    order: 0;
+  }
+  /* Y un costado vacío vuelve a ser carcasa, como en escritorio: si se ocultase,
+     la pantalla daría un salto de ancho justo al pulsar EMPEZAR. */
+  .consola-lado:empty {
+    display: flex;
   }
 }
 

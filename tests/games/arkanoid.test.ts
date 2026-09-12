@@ -21,6 +21,7 @@ import { creaCanvas } from "../harness/canvas";
 import { verificaContrato } from "../harness/contrato";
 import { verificaMando } from "../harness/mando";
 import { montaMotor, pulsa, suelta } from "../harness/motor";
+import { verificaRendimiento } from "../harness/rendimiento";
 import { verificaSkins } from "../harness/skins";
 
 const SFX_REBOTE = "/bloque-rebote.mp3";
@@ -29,6 +30,22 @@ const SFX_ROMPER = "/bloque-romper.mp3";
 verificaContrato("BLOQUE BUSTER", createArkanoidGame);
 verificaSkins("BLOQUE BUSTER", createArkanoidGame, SKINS_BLOQUE_BUSTER);
 verificaMando("BLOQUE BUSTER", "bloque-buster", createArkanoidGame);
+// Presupuesto medido el 2026-09-11, con la muralla cacheada en un canvas aparte
+// (ver la caché del muro en arkanoid.ts). El peor fotograma de seis partidas de
+// 600 fotogramas dio 23 llamadas de dibujo y 8 asignaciones de color; antes de
+// la caché eran 136 y 193. Los techos están puestos para pillar que alguien
+// vuelva a pintar los sesenta bloques con blur en cada fotograma, no el ruido
+// del runner.
+//
+// El de heap va holgado a propósito: medido cinco veces seguidas en el mismo
+// proceso osciló entre 42 y 393 KB, que es basura de los otros motores de la
+// suite y no memoria que retenga este. Solo corre con --expose-gc.
+verificaRendimiento("BLOQUE BUSTER", createArkanoidGame, {
+  dibujoPorFrame: 32,
+  coloresPorFrame: 12,
+  emisionesEn600: 20,
+  heapKbEn600: 700,
+});
 
 describe("BLOQUE BUSTER: resolución", () => {
   it("usa el canvas de 800×600 que fija el reproductor", () => {

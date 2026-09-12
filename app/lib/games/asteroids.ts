@@ -9,6 +9,17 @@
 //  - Las entidades reciben el `ctx` en draw() en vez de capturarlo del módulo,
 //    así el motor no depende de que exista un canvas al importarlo.
 //  - Sin HUD ni overlay dentro del canvas: de eso se encarga la plataforma.
+//
+// Coste por fotograma (auditoría de game-performance-booster, 2026-09-11). Se
+// midió una partida en régimen —nave acelerando y disparando, 8 rocas, ~10
+// partículas— y salió: 197,7 llamadas al contexto, 24,6 asignaciones de color y
+// 1109 KB de basura por 600 fotogramas. Lo que se cambió, y por qué cada cosa
+// pinta exactamente los mismos píxeles, está anotado en el punto del cambio:
+//  - El estado que es del GRUPO (strokeStyle, lineWidth, lineJoin) se fija una
+//    vez en draw() y no por entidad: ver «contrato de estado» en draw().
+//  - `setTransform()` en vez de `save()/translate()/rotate()/restore()`: la
+//    matriz resultante es la misma, con dos llamadas menos por entidad.
+//  - Las listas se compactan in situ (`compactaVivos`) en vez de con `.filter()`.
 
 import { conAlfa, paletaDe, type FichaDeSkins } from "./skins";
 import type { GameFactory, GameOverReason, GameOverSummary } from "./types";
@@ -96,6 +107,12 @@ export const SKINS_ROCAS: FichaDeSkins<RolRocas> = {
   },
 };
 
+// El giro fijo de 45° de la mejora, precalculado. Van por separado porque
+// cos(π/4) y sin(π/4) NO son el mismo double (…76 frente a …75): así la matriz
+// de setTransform() es bit a bit la que dejaba `rotate(Math.PI / 4)`.
+const COS45 = Math.cos(Math.PI / 4);
+const SIN45 = Math.sin(Math.PI / 4);
+
 const POWERUP_DROP_CHANCE = 0.15;
 const POWERUP_DURATION = 5; // segundos de triple disparo
 const POWERUP_TTL = 12; // segundos antes de que caduque sin recoger
@@ -113,6 +130,20 @@ const wrap = (v: number, max: number) => ((v % max) + max) % max;
 const dist = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 const rand = (min: number, max: number) => min + Math.random() * (max - min);
 const randInt = (min: number, max: number) => Math.floor(rand(min, max + 1));
+
+// Quita de la lista los elementos marcados `dead`, in situ y conservando el
+// orden. Sustituye a `lista.filter(e => !e.dead)`, que creaba un array nuevo por
+// lista y por fotograma: con balas, partículas, mejoras y rocas eran seis arrays
+// cada 16 ms (medido: 1109 KB de basura por 600 fotogramas de partida).
+// El orden importa y se conserva: es el orden de dibujo y el de las colisiones.
+function compactaVivos<T extends { dead: boolean }>(lista: T[]): void {
+  let vivos = 0;
+  for (let i = 0; i < lista.length; i++) {
+    const e = lista[i];
+    if (!e.dead) lista[vivos++] = e;
+  }
+  lista.length = vivos;
+}
 
 // ── Teclado ───────────────────────────────────────────────────────────────────
 
@@ -204,8 +235,10 @@ export class Bullet {
     if (this.ttl <= 0) this.dead = true;
   }
 
-  draw(ctx: CanvasRenderingContext2D, paleta: PaletaRocas) {
-    ctx.fillStyle = paleta.bala;
+  // `fillStyle` (paleta.bala) lo fija draw() una vez para todas las balas: es
+  // el mismo color para todas y reasignarlo por bala eran N invalidaciones del
+  // estado del contexto por fotograma.
+  draw(ctx: CanvasRenderingContext2D) {
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
     ctx.fill();
@@ -223,7 +256,12 @@ export class Asteroid {
   vy: number;
   rot: number;
   rotSpeed: number;
-  verts: [number, number][] = [];
+  // Los vértices van PLANOS e intercalados (x0, y0, x1, y1, …) en un solo array
+  // en vez de en un array de tuplas. Son los mismos números, pero un asteroide
+  // grande que se parte creaba veinte arrays de dos elementos que además
+  // obligaban a una indirección por vértice en el bucle de dibujo (~86 lineTo
+  // por fotograma).
+  verts: number[] = [];
   dead = false;
 
   constructor(x: number, y: number, size = 3) {
@@ -244,7 +282,9 @@ export class Asteroid {
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2;
       const r = this.radius * rand(0.6, 1.0);
-      this.verts.push([Math.cos(a) * r, Math.sin(a) * r]);
+      // El orden de las llamadas a rand() es el mismo que antes (una por
+      // vértice), así que la silueta que sale de una semilla dada no cambia.
+      this.verts.push(Math.cos(a) * r, Math.sin(a) * r);
     }
   }
 
@@ -258,29 +298,31 @@ export class Asteroid {
     this.rot += this.rotSpeed * dt;
   }
 
-  // Los pequeños (tamaño 1) no se parten.
-  split(): Asteroid[] {
-    if (this.size <= 1) return [];
-    return [
-      new Asteroid(this.x, this.y, this.size - 1),
-      new Asteroid(this.x, this.y, this.size - 1),
-    ];
+  // Los pequeños (tamaño 1) no se parten. Las dos crías se empujan a la lista
+  // que recibe, en vez de devolver un array nuevo que el motor tenía que
+  // esparcir con `push(...)`: son dos arrays menos por impacto.
+  split(destino: Asteroid[]): void {
+    if (this.size <= 1) return;
+    destino.push(new Asteroid(this.x, this.y, this.size - 1));
+    destino.push(new Asteroid(this.x, this.y, this.size - 1));
   }
 
-  draw(ctx: CanvasRenderingContext2D, paleta: PaletaRocas) {
-    ctx.save();
-    ctx.translate(this.x, this.y);
-    ctx.rotate(this.rot);
-    ctx.strokeStyle = paleta.roca;
-    ctx.lineWidth = 1.5;
-    ctx.lineJoin = "round";
+  // OJO: esto NO fija el color ni el grosor. El estado de todas las rocas es el
+  // mismo (paleta.roca, 1.5, "round"), así que lo pone draw() una vez por
+  // fotograma; con ocho rocas eran 24 escrituras de estado donde ahora hay 3.
+  // La matriz `[cos, sin, -sin, cos, x, y]` es exactamente la que dejaban
+  // `translate(x, y)` + `rotate(rot)` sobre la identidad, y draw() devuelve la
+  // identidad al acabar el grupo, así que sobran el `save()` y el `restore()`.
+  draw(ctx: CanvasRenderingContext2D) {
+    const cos = Math.cos(this.rot);
+    const sin = Math.sin(this.rot);
+    ctx.setTransform(cos, sin, -sin, cos, this.x, this.y);
+    const v = this.verts;
     ctx.beginPath();
-    ctx.moveTo(this.verts[0][0], this.verts[0][1]);
-    for (let i = 1; i < this.verts.length; i++)
-      ctx.lineTo(this.verts[i][0], this.verts[i][1]);
+    ctx.moveTo(v[0], v[1]);
+    for (let i = 2; i < v.length; i += 2) ctx.lineTo(v[i], v[i + 1]);
     ctx.closePath();
     ctx.stroke();
-    ctx.restore();
   }
 }
 
@@ -314,19 +356,26 @@ export class PowerUp {
     if (this.ttl <= 0) this.dead = true;
   }
 
-  draw(ctx: CanvasRenderingContext2D, paleta: PaletaRocas) {
+  // `ts` es la marca del rAF, la misma que usa el bucle. Antes esto llamaba a
+  // `performance.now()` dentro de draw() teniendo el `ts` del fotograma a mano:
+  // es el mismo reloj y el mismo origen, así que el latido es el mismo, y de
+  // paso todas las entidades de un fotograma comparten instante.
+  draw(ctx: CanvasRenderingContext2D, paleta: PaletaRocas, ts: number) {
     // Parpadea los dos últimos segundos para avisar de que se va.
     if (this.ttl < 2 && Math.floor(this.ttl * 8) % 2 === 0) return;
 
-    const pulse = 0.85 + Math.sin(performance.now() / 150) * 0.15;
-    ctx.save();
-    ctx.translate(this.x, this.y);
-    ctx.rotate(Math.PI / 4);
+    const pulse = 0.85 + Math.sin(ts / 150) * 0.15;
+    ctx.setTransform(COS45, SIN45, -SIN45, COS45, this.x, this.y);
     ctx.strokeStyle = paleta.mejora;
     ctx.lineWidth = 2;
+    // Explícito a propósito: las esquinas del cuadrado se veían en "miter"
+    // porque el save()/restore() de las rocas devolvía el valor por defecto.
+    // Sin ese restore, el "round" del grupo de rocas se colaría aquí y
+    // redondearía las cuatro esquinas — y eso sí sería cambiar lo que se ve.
+    ctx.lineJoin = "miter";
     const r = this.radius * pulse;
     ctx.strokeRect(-r, -r, r * 2, r * 2);
-    ctx.restore();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
 
     ctx.fillStyle = paleta.mejora;
     ctx.font = "bold 12px monospace";
@@ -415,9 +464,12 @@ export class Ship {
     if (this.invincible > 0 && Math.floor(this.invincible * 8) % 2 === 0)
       return;
 
-    ctx.save();
-    ctx.translate(this.x, this.y);
-    ctx.rotate(this.angle);
+    // Misma matriz que `translate(x, y)` + `rotate(angle)`, sin el par
+    // save()/restore(): la nave es la última en dibujarse y draw() deja la
+    // identidad puesta al salir.
+    const cos = Math.cos(this.angle);
+    const sin = Math.sin(this.angle);
+    ctx.setTransform(cos, sin, -sin, cos, this.x, this.y);
     ctx.strokeStyle = paleta.nave;
     ctx.lineWidth = 1.5;
     ctx.lineJoin = "round";
@@ -441,7 +493,7 @@ export class Ship {
       ctx.stroke();
     }
 
-    ctx.restore();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 }
 
@@ -475,10 +527,15 @@ export class Particle {
     if (this.ttl <= 0) this.dead = true;
   }
 
+  // El `strokeStyle` sí es de cada partícula —lleva su alfa, que se apaga con
+  // el tiempo—, pero `lineWidth = 1` es igual para todas y lo fija draw() una
+  // vez por fotograma: con diez partículas eran nueve escrituras de estado de
+  // más. No se pueden fundir en un solo path por lo mismo: cada una tiene su
+  // alfa, y agruparlas por color cambiaría el orden de mezcla de las que se
+  // solapan.
   draw(ctx: CanvasRenderingContext2D, paleta: PaletaRocas) {
     const alpha = this.ttl / this.life;
     ctx.strokeStyle = conAlfa(paleta.particula, alpha);
-    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(this.x, this.y);
     ctx.lineTo(this.x - this.vx * 0.05, this.y - this.vy * 0.05);
@@ -512,10 +569,16 @@ export const createAsteroidsGame: GameFactory = (
   // Todo el estado de partida vive aquí dentro: dos instancias del motor no se
   // pisan, y al destruirlo se va con el closure.
   let ship = new Ship();
-  let bullets: Bullet[] = [];
-  let asteroids: Asteroid[] = [];
-  let particles: Particle[] = [];
-  let powerUps: PowerUp[] = [];
+  // Las cuatro listas son `const` y se vacían con `length = 0`: así ni el
+  // reinicio ni el cambio de nivel crean arrays nuevos, y `compactaVivos()`
+  // puede trabajar in situ sobre ellas.
+  const bullets: Bullet[] = [];
+  const asteroids: Asteroid[] = [];
+  const particles: Particle[] = [];
+  const powerUps: PowerUp[] = [];
+  // Búfer reutilizado para las rocas que nacen al partirse otra en este
+  // fotograma. Antes era un array literal nuevo en cada update().
+  const nacidas: Asteroid[] = [];
   let score = 0;
   let lives = 3;
   let level = 1;
@@ -525,6 +588,11 @@ export const createAsteroidsGame: GameFactory = (
   let killsSinceSpawn = 0;
   let rafId: number | null = null;
   let lastTime: number | null = null;
+  // La marca del último fotograma, para que draw() no tenga que llamar a
+  // `performance.now()`. A diferencia de `lastTime` NO se pone a null al parar:
+  // el repintado de pause() necesita una marca, y la del último fotograma
+  // jugado es justo la que congela la imagen tal como se quedó.
+  let tsDibujo = 0;
   // Tiempo jugado, no tiempo transcurrido: se acumula con el dt del bucle, que
   // deja de correr al pausar. Las pausas quedan fuera sin lógica extra.
   let elapsedMs = 0;
@@ -567,10 +635,10 @@ export const createAsteroidsGame: GameFactory = (
 
   function initGame() {
     ship = new Ship();
-    bullets = [];
-    asteroids = [];
-    particles = [];
-    powerUps = [];
+    bullets.length = 0;
+    asteroids.length = 0;
+    particles.length = 0;
+    powerUps.length = 0;
     powerUpSpawned = false;
     killsSinceSpawn = 0;
     deadTimer = 0;
@@ -590,9 +658,9 @@ export const createAsteroidsGame: GameFactory = (
 
   function nextLevel() {
     setLevel(level + 1);
-    bullets = [];
-    particles = [];
-    powerUps = [];
+    bullets.length = 0;
+    particles.length = 0;
+    powerUps.length = 0;
     powerUpSpawned = false;
     killsSinceSpawn = 0;
     ship.reset();
@@ -628,9 +696,11 @@ export const createAsteroidsGame: GameFactory = (
     // reaparecer; la nave no responde.
     if (state === "dead") {
       deadTimer -= dt;
-      particles.forEach((p) => p.update(dt));
-      particles = particles.filter((p) => !p.dead);
-      asteroids.forEach((a) => a.update(dt));
+      // Bucles indexados, no `forEach`: cada `forEach` con una lambda que
+      // captura `dt` es un cierre nuevo por lista y por fotograma.
+      for (let i = 0; i < particles.length; i++) particles[i].update(dt);
+      compactaVivos(particles);
+      for (let i = 0; i < asteroids.length; i++) asteroids[i].update(dt);
       if (deadTimer <= 0) {
         state = "playing";
         ship.reset();
@@ -641,17 +711,20 @@ export const createAsteroidsGame: GameFactory = (
     if (input.wasPressed("Space")) bullets.push(...ship.tryShoot());
 
     ship.update(dt, input);
-    bullets.forEach((b) => b.update(dt));
-    asteroids.forEach((a) => a.update(dt));
-    particles.forEach((p) => p.update(dt));
-    powerUps.forEach((p) => p.update(dt));
+    // Los cinco recorridos van indexados: un `forEach` por lista era un cierre
+    // nuevo por fotograma, y un `for…of` un iterador nuevo.
+    for (let i = 0; i < bullets.length; i++) bullets[i].update(dt);
+    for (let i = 0; i < asteroids.length; i++) asteroids[i].update(dt);
+    for (let i = 0; i < particles.length; i++) particles[i].update(dt);
+    for (let i = 0; i < powerUps.length; i++) powerUps[i].update(dt);
 
-    bullets = bullets.filter((b) => !b.dead);
-    particles = particles.filter((p) => !p.dead);
-    powerUps = powerUps.filter((p) => !p.dead);
+    compactaVivos(bullets);
+    compactaVivos(particles);
+    compactaVivos(powerUps);
 
     // Nave vs power-up
-    for (const p of powerUps) {
+    for (let i = 0; i < powerUps.length; i++) {
+      const p = powerUps[i];
       if (!p.dead && dist(ship, p) < ship.radius + p.radius) {
         p.dead = true;
         ship.tripleShot = PowerUp.DURATION;
@@ -659,16 +732,18 @@ export const createAsteroidsGame: GameFactory = (
     }
 
     // Bala vs asteroide
-    const spawned: Asteroid[] = [];
-    for (const b of bullets) {
-      for (const a of asteroids) {
+    nacidas.length = 0;
+    for (let bi = 0; bi < bullets.length; bi++) {
+      const b = bullets[bi];
+      for (let ai = 0; ai < asteroids.length; ai++) {
+        const a = asteroids[ai];
         if (a.dead || b.dead || dist(b, a) >= a.radius) continue;
 
         b.dead = true;
         a.dead = true;
         setScore(score + a.points);
         explode(a.x, a.y, a.size * 5);
-        spawned.push(...a.split());
+        a.split(nacidas);
 
         // Solo cae un power-up por nivel: al azar, pero garantizado al quinto
         // asteroide para que no dependa de la suerte.
@@ -681,12 +756,19 @@ export const createAsteroidsGame: GameFactory = (
         }
       }
     }
-    asteroids = asteroids.filter((a) => !a.dead).concat(spawned);
-    bullets = bullets.filter((b) => !b.dead);
+    // Antes: `asteroids.filter(…).concat(spawned)` y otro `filter` para las
+    // balas, o sea tres arrays nuevos en el fotograma de cada impacto. El orden
+    // resultante es el mismo: las supervivientes por delante y las recién
+    // partidas al final.
+    compactaVivos(asteroids);
+    for (let i = 0; i < nacidas.length; i++) asteroids.push(nacidas[i]);
+    nacidas.length = 0;
+    compactaVivos(bullets);
 
     // Nave vs asteroide. El 0.82 es holgura a favor del jugador.
     if (ship.invincible <= 0) {
-      for (const a of asteroids) {
+      for (let i = 0; i < asteroids.length; i++) {
+        const a = asteroids[i];
         if (dist(ship, a) < ship.radius + a.radius * 0.82) {
           killShip();
           break;
@@ -699,14 +781,48 @@ export const createAsteroidsGame: GameFactory = (
 
   // Sin HUD ni overlay: la puntuación, las vidas, el nivel y el fin de partida
   // los pinta la plataforma a partir de los callbacks.
-  function draw() {
+  //
+  // ── Contrato de estado del contexto ────────────────────────────────────────
+  // Cada grupo de entidades fija AQUÍ, una sola vez, el estado que comparten
+  // todas sus instancias, y cada entidad solo pone lo que es suyo. Antes cada
+  // instancia reasignaba los mismos `strokeStyle`/`lineWidth`/`lineJoin`: con
+  // ocho rocas y diez partículas eran ~38 invalidaciones de estado por
+  // fotograma para pintar exactamente los mismos píxeles.
+  //
+  // Lo que cada grupo necesita encontrar puesto, y quién lo pone:
+  //  - fondo:      fillStyle (aquí).
+  //  - partículas: lineWidth (aquí) + strokeStyle por partícula (lleva su alfa).
+  //                Sin uniones: `lineJoin` no les afecta.
+  //  - rocas:      strokeStyle, lineWidth y lineJoin (aquí) + su matriz.
+  //  - mejora:     lo pone todo ella, `lineJoin` incluido (ver PowerUp.draw).
+  //  - balas:      fillStyle (aquí).
+  //  - nave:       lo pone todo ella.
+  // La transformación queda siempre en la identidad al salir de cada grupo, que
+  // es lo que hacían los save()/restore() que ya no están.
+  function draw(ts: number) {
     ctx.fillStyle = paleta.fondo;
     ctx.fillRect(0, 0, W, H);
 
-    particles.forEach((p) => p.draw(ctx, paleta));
-    asteroids.forEach((a) => a.draw(ctx, paleta));
-    powerUps.forEach((p) => p.draw(ctx, paleta));
-    bullets.forEach((b) => b.draw(ctx, paleta));
+    if (particles.length > 0) {
+      ctx.lineWidth = 1;
+      for (let i = 0; i < particles.length; i++) particles[i].draw(ctx, paleta);
+    }
+
+    if (asteroids.length > 0) {
+      ctx.strokeStyle = paleta.roca;
+      ctx.lineWidth = 1.5;
+      ctx.lineJoin = "round";
+      for (let i = 0; i < asteroids.length; i++) asteroids[i].draw(ctx);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
+
+    for (let i = 0; i < powerUps.length; i++) powerUps[i].draw(ctx, paleta, ts);
+
+    if (bullets.length > 0) {
+      ctx.fillStyle = paleta.bala;
+      for (let i = 0; i < bullets.length; i++) bullets[i].draw(ctx);
+    }
+
     ship.draw(ctx, paleta);
   }
 
@@ -714,9 +830,10 @@ export const createAsteroidsGame: GameFactory = (
     // dt capado: volver de otra pestaña no debe avanzar el juego de golpe.
     const dt = lastTime === null ? 0 : Math.min((ts - lastTime) / 1000, 0.05);
     lastTime = ts;
+    tsDibujo = ts;
 
     update(dt);
-    draw();
+    draw(ts);
 
     if (state === "gameover") {
       rafId = null;
@@ -746,7 +863,10 @@ export const createAsteroidsGame: GameFactory = (
       // tecla que el jugador ya soltó.
       input.clear();
       stopLoop();
-      draw();
+      // Se repinta con la marca del último fotograma jugado: la imagen queda
+      // congelada tal como se quedó, en vez de con el latido de la mejora
+      // adelantado al instante en que el jugador pulsó pausa.
+      draw(tsDibujo);
     },
 
     resume() {

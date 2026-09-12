@@ -1,17 +1,21 @@
 # Juegos implementados — Arcade Vault
 
-> **Fecha:** 2026-08-13 (revisado el 2026-08-14 al implementarse RANARIA)
+> **Fecha:** 2026-08-13 (revisado el 2026-09-11 al implementarse GLOTÓN)
 > **Fuente:** `GAME_ENGINES` (`app/lib/games/registry.ts`), los motores de
 > `app/lib/games/` y una consulta a `game_sessions` en Supabase.
 
 El catálogo (`GAMES`, en `app/lib/data.ts`) tiene **ocho juegos**, pero solo
-**cinco tienen motor real**: corren sobre un canvas, se juegan de verdad y sus
-partidas se registran en la base de datos. Los otros tres siguen cayendo en el
-reproductor simulado, que es un `setInterval` subiendo un número.
+**seis tienen motor real**: corren sobre un canvas, se juegan de verdad y sus
+partidas se registran en la base de datos. Los otros dos (`invasores` y
+`duelo-pixel`) siguen cayendo en el reproductor simulado, que es un
+`setInterval` subiendo un número.
 
-La lista de abajo son los cinco reales. La base de datos lo confirma: en
-`game_sessions` hay partidas registradas con exactamente esos cinco `game_id`
-y ninguno más.
+La lista de abajo son los seis reales. **La base de datos ya no sirve para
+confirmarlo**: hoy solo hay partidas de cuatro `game_id`, porque el proyecto de
+Supabase se recreó (SPEC 15) y las partidas anteriores no se migraron. Que un
+juego no tenga filas en `game_sessions` dice que nadie lo ha jugado desde la
+mudanza, no que le falte motor. La fuente de verdad de qué tiene motor es
+`GAME_ENGINES`.
 
 ---
 
@@ -24,6 +28,7 @@ y ninguno más.
 | **BLOQUE BUSTER** | `bloque-buster` | Arkanoid  | ARCADE    | `arkanoid.ts`  | 09                        | 3         |
 | **SERPENTINA**    | `serpentina`    | Snake     | ARCADE    | `snake.ts`     | 10                        | — (1 → 0) |
 | **RANARIA**       | `ranaria`       | Frogger   | ARCADE    | `frogger.ts`   | `game-jam/ranaria/` + 11  | 3         |
+| **GLOTÓN**        | `gloton`        | Pac-Man   | ARCADE    | `pacman.ts`    | 18                        | 3         |
 
 Los ids están en español a propósito y no delatan el clásico que son. Son los
 slugs de las URLs: `/juego/serpentina` y `/juego/serpentina/jugar`.
@@ -33,7 +38,7 @@ hasta pulsar **ESPACIO** en el overlay, `ESC` pausa y reanuda, cambiar de
 pestaña pausa solo, y al terminar se abre el modal de fin. Nada de eso lo
 implementa el juego: lo pone el reproductor.
 
-**Solo RANARIA suena.** Los otros cuatro son mudos, y el sonido lo dispara el
+**Solo RANARIA suena.** Los otros cinco son mudos, y el sonido lo dispara el
 motor con `crearSfx()` (`app/lib/games/audio.ts`), nunca el reproductor.
 
 ---
@@ -155,26 +160,65 @@ primer juego con sonido** (SPEC 11).
 
 ---
 
+## GLOTÓN — `gloton`
+
+Pac-Man. **El sexto y el más caro de todos** (SPEC 18): 1 326 líneas frente a las
+943 de SERPENTINA. Escrito desde cero, sin material de referencia. Lo eligió el
+usuario por encima de `flujo`, que iba primero en el roadmap, al pedir el juego
+grande.
+
+- **Motor:** `app/lib/games/pacman.ts` (1 326 líneas)
+- **Controles:** `← → ↑ ↓` o `W A S D` mover · `ESC` pausa. No usa ESPACIO.
+- **Puntuación:** punto 10 · píldora 50 · cadena de fantasmas 200 → 400 → 800 →
+  1600 (reinicia con cada píldora) · fruta de 100 a 5000 según el nivel.
+- **Vidas:** 3, más una extra a los 10 000 puntos.
+- **Nivel:** sube al comerse los 244 comestibles del laberinto. Cada nivel
+  acelera a todo el mundo y acorta lo que dura la píldora.
+- **Extras:** los cuatro fantasmas con sus personalidades canónicas, alternancia
+  scatter/chase por tabla de tiempos, ojos que vuelven a casa, túnel lateral que
+  frena a los fantasmas y frutas bonus.
+
+Tres cosas que lo hacen distinto de los otros cinco:
+
+1. **Es el primero con adversarios que piensan.** Los cuatro comparten la regla
+   de cruce —elegir la salida que minimiza la distancia al destino, sin invertir
+   el sentido— y se diferencian **solo** en su función de destino. De ahí sale
+   que se comporten distinto sin tener cuatro algoritmos.
+2. **Es el primero con un mapa tabulado.** El laberinto de 28×31 no se genera:
+   se transcribe. Eso mueve el riesgo del algoritmo al dato, y por eso sus
+   pruebas cuentan (240 puntos, 4 píldoras, simetría especular y un BFS de
+   alcanzabilidad) en vez de mirar.
+3. **Es el primero con un solo aspecto.** No declara `FichaDeSkins` ni entra en
+   `GAME_PALETAS`, así que su overlay **no enseña el selector de ASPECTO**. Es
+   decisión del usuario, razonada en la spec: los colores de Pac-Man no son un
+   tema encima de unas formas, son cómo se distingue a Blinky de Clyde. A cambio
+   no puede heredar `verificaSkins`, y su archivo de pruebas la sustituye por una
+   propia que comprueba contra el canvas que ningún color ajeno a la paleta llega
+   a pintarse.
+
+---
+
 ## Partidas registradas
 
-Consulta a `game_sessions` del **14/08/2026** (fechas en UTC). Son datos de
+Consulta a `game_sessions` del **11/09/2026** (fechas en UTC). Son datos de
 desarrollo, de las pruebas de cada spec, no de uso real:
 
 | Juego         | Partidas | Jugadores | Mejor score | Nivel máx. | Duración media | Última partida |
 | ------------- | -------- | --------- | ----------- | ---------- | -------------- | -------------- |
-| RANARIA       | 10       | 1         | 275         | 1          | 18 s           | 14/08/2026     |
-| ROCAS         | 9        | 4         | 6 050       | 3          | 28 s           | 10/08/2026     |
-| SERPENTINA    | 2        | 1         | 850         | 2          | 19 s           | 13/08/2026     |
-| BLOQUE BUSTER | 1        | 1         | 400         | 1          | 7 s            | 13/08/2026     |
-| CAÍDA         | 1        | 1         | 110         | 1          | 19 s           | 12/08/2026     |
+| BLOQUE BUSTER | 5        | 1         | 3 900       | 1          | 23 s           | 03/09/2026     |
+| CAÍDA         | 2        | 1         | 251         | 1          | 102 s          | 04/09/2026     |
+| ROCAS         | 1        | 1         | 3 830       | 2          | 73 s           | 05/09/2026     |
+| SERPENTINA    | 1        | 1         | 50          | 1          | 16 s           | 05/09/2026     |
 
-**23 partidas en total.** Ningún otro `game_id` aparece en la tabla, lo que
-confirma que los tres simulados no registran nada.
+**9 partidas en total**, de cuatro `game_id`. **RANARIA y GLOTÓN no tienen
+ninguna**, y eso no dice nada de sus motores: la tabla se vació al recrearse el
+proyecto de Supabase (SPEC 15) y desde entonces nadie ha jugado a RANARIA;
+GLOTÓN acaba de nacer. La revisión anterior de este documento (14/08/2026)
+contaba 23 partidas y afirmaba que los cinco motores de entonces tenían filas
+—cierto aquel día, ya no.
 
-RANARIA es ya el más jugado en número de partidas —diez en su primer día, todas
-del mismo jugador y ninguna pasando de nivel 1— y el de peor score máximo. Es lo
-que se espera de un juego recién ajustado, no una señal de dificultad mal puesta:
-con 275 puntos ni siquiera se llenó una vez la meta, que son 2000 × nivel.
+Lección para la próxima revisión: **`game_sessions` mide quién ha jugado, no qué
+está implementado.** Para lo segundo, `GAME_ENGINES`.
 
 > **Ojo con el campo `best` de `GAMES`** (`app/lib/data.ts`): sigue siendo mock.
 > Las tarjetas del catálogo anuncian 41 200 para ROCAS o 7 820 para SERPENTINA,
@@ -186,17 +230,21 @@ con 275 puntos ni siquiera se llenó una vez la meta, que son 2000 × nivel.
 
 ## Pendientes
 
-Los tres que siguen con el reproductor simulado. El id ya existe en `GAMES`:
+Los dos que siguen con el reproductor simulado. El id ya existe en `GAMES`:
 al implementarlos hay que usar ese, no inventar uno nuevo.
 
 | Juego       | Id            | Clásico        | Categoría |
 | ----------- | ------------- | -------------- | --------- |
-| GLOTÓN      | `gloton`      | Pac-Man        | ARCADE    |
 | INVASORES   | `invasores`   | Space Invaders | SHOOTER   |
 | DUELO PIXEL | `duelo-pixel` | Pong           | VERSUS    |
 
-Ninguno tiene código de referencia: como SERPENTINA y RANARIA, habría que
-escribirlos enteros con las mecánicas fijadas en su spec.
+Ninguno tiene código de referencia: como SERPENTINA, RANARIA y GLOTÓN, habría
+que escribirlos enteros con las mecánicas fijadas en su spec.
+
+Hay además un tercer candidato que **no está en `GAMES`**: FLUJO (`flujo`, Pipe
+Mania), el nº 1 del roadmap por puntuación. Ese sí obliga a crear la entrada del
+catálogo y su portada `cover-flujo`. Sería el segundo PUZZLE, que junto a VERSUS
+es la categoría más vacía — y con GLOTÓN hecha, ARCADE ya va por cuatro de seis.
 
 El orden en que conviene atacarlos, y por qué, está en
 `game-suggestions-todo.md`, en esta misma carpeta.
@@ -215,8 +263,10 @@ ni SQL—.
    recibe un canvas y cuatro callbacks (`onScore`, `onLives`, `onLevel`,
    `onGameOver`) y devuelve un mando con `start`, `pause`, `resume`, `end` y
    `destroy`.
-2. Registrarlo en `app/lib/games/registry.ts`: una línea en `GAME_ENGINES` y
-   otra en `GAME_CONTROLS` con las teclas que anunciará el overlay.
+2. Registrarlo en `app/lib/games/registry.ts`: `GAME_ENGINES` (el motor),
+   `GAME_CONTROLS` (las teclas que anunciará el overlay), `GAME_TOUCH` (el mando
+   táctil) y `GAME_PALETAS` (la ficha de skins) — esta última **es la única
+   opcional**: GLOTÓN no la tiene y por eso no enseña selector de aspecto.
 3. Añadir `tests/games/<juego>.test.ts`. Con una línea
    —`verificaContrato("NOMBRE", createXGame)`— hereda las 27 comprobaciones del
    contrato, y encima va solo lo propio del juego.

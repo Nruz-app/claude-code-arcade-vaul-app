@@ -13,7 +13,6 @@ import { describe, expect, it } from "vitest";
 
 import { SKINS_BLOQUE_BUSTER } from "@/app/lib/games/arkanoid";
 import { SKINS_ROCAS } from "@/app/lib/games/asteroids";
-import { SKINS_RANARIA } from "@/app/lib/games/frogger";
 import { SKINS_SERPENTINA } from "@/app/lib/games/snake";
 import { SKINS_CAIDA } from "@/app/lib/games/tetris";
 import {
