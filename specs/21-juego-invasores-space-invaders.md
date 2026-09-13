@@ -1,6 +1,6 @@
 # SPEC 21 — INVASORES: el séptimo juego real
 
-> **Estado:** Aprobado
+> **Estado:** Implementado
 > **Depende de:** SPEC 05, SPEC 06, SPEC 13, SPEC 14
 > **Fecha:** 2026-09-12
 > **Objetivo:** Escribir desde cero un motor de Space Invaders en TypeScript sobre canvas —formación de 5×11 que acelera al morir, escudos que se erosionan disparo a disparo y nave nodriza— y registrarlo como el juego `invasores` con sus tres aspectos, sin tocar el reproductor ni el Salón de la Fama.

@@ -92,6 +92,29 @@ debe estar **desactivada**. Con ella activada, `signUp` no devuelve sesión y el
 registro muestra "REVISA TU CORREO PARA CONFIRMAR LA CUENTA" en lugar de entrar
 directo a la biblioteca.
 
+En **Authentication → URL Configuration → Redirect URLs** tiene que estar
+`http://localhost:3000/auth/confirmar` (y la equivalente de producción, si la
+hay). Sin ella, el enlace de recuperación de contraseña llega al correo y
+funciona, pero Supabase ignora el `redirectTo` y deja al usuario en la portada
+en lugar de en la pantalla para escribir la contraseña nueva. Esa misma lista es
+la que usa la vuelta de Google y GitHub, así que **si sirves el portal en otro
+puerto, hay que añadirlo también**.
+
+Para entrar con **Google o GitHub** hacen falta además dos aplicaciones OAuth
+—una en Google Cloud Console y otra en GitHub Developer Settings—, las dos
+apuntando a `https://<project_ref>.supabase.co/auth/v1/callback`, con su Client
+ID y Secret pegados en **Authentication → Sign In / Providers**. El paso 3c del
+runbook lo detalla. Sin ese alta, los dos botones muestran "ESE ACCESO NO ESTÁ
+DISPONIBLE TODAVÍA" y el resto del acceso sigue funcionando igual.
+
+Y tres interruptores de seguridad, en las mismas pantallas: **Minimum password
+length** a **8** y **Leaked password protection** activada (ambos en
+_Authentication → Sign In / Providers → Email_), más el límite de registros e
+inicios de sesión por hora y por IP bajado a **10** en _Authentication → Rate
+Limits_. Son el paso 3d del runbook. Si te olvidas, el portal funciona igual —
+pero acepta contraseñas de seis caracteres y contraseñas ya filtradas, y el
+mínimo que el formulario anuncia deja de ser el que aplica el servidor.
+
 ## Usa Spec Driven Design
 
 Basado en /spec y /spec-impl

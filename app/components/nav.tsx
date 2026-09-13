@@ -20,7 +20,10 @@ export default function Nav() {
   const isLibrary = pathname === "/biblioteca" || pathname.startsWith("/juego");
   const isSalon = pathname === "/salon";
   const isAbout = pathname === "/acerca";
-  const isAuth = pathname === "/auth";
+  // Acceso abarca las cuatro pantallas de /auth (login, registro, recuperar y
+  // nueva-password): desde la SPEC 19 la igualdad exacta solo acertaría en la
+  // ruta que redirige, que es justo la que nunca llega a pintarse.
+  const isAuth = pathname.startsWith("/auth");
   const close = () => setOpen(false);
 
   return (
@@ -74,7 +77,10 @@ export default function Nav() {
         onClick={close}
       ></div>
       <aside className={"av-mobile-panel" + (open ? " open" : "")}>
-        <div className="pixel neon-cyan" style={{ fontSize: 11, marginBottom: 16 }}>
+        <div
+          className="pixel neon-cyan"
+          style={{ fontSize: 11, marginBottom: 16 }}
+        >
           MENÚ
         </div>
         <Link className={isHome ? "active" : ""} href="/" onClick={close}>
@@ -90,7 +96,11 @@ export default function Nav() {
         <Link className={isSalon ? "active" : ""} href="/salon" onClick={close}>
           Salón de la Fama
         </Link>
-        <Link className={isAbout ? "active" : ""} href="/acerca" onClick={close}>
+        <Link
+          className={isAbout ? "active" : ""}
+          href="/acerca"
+          onClick={close}
+        >
           Acerca de
         </Link>
         <Link className={isAuth ? "active" : ""} href="/auth" onClick={close}>
@@ -99,7 +109,11 @@ export default function Nav() {
         <div style={{ flex: 1 }}></div>
         <div
           className="pixel"
-          style={{ fontSize: 9, color: "var(--ink-faint)", letterSpacing: "0.16em" }}
+          style={{
+            fontSize: 9,
+            color: "var(--ink-faint)",
+            letterSpacing: "0.16em",
+          }}
         >
           CRÉDITOS · 03
         </div>

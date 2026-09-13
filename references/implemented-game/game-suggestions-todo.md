@@ -28,16 +28,15 @@ _Sugerencias del agente sin visto bueno. Al aprobarse suben a «Siguiente»; al 
 bajan a «Descartado» con el motivo._
 
 **Roadmap** (2026-08-13). El orden es el de puntuación. Era de cinco; RANARIA, que iba
-primera, ya está hecha y ha bajado a «Hecho», y GLOTÓN también (SPEC 18, el 2026-09-11),
-así que quedan tres:
+primera, ya está hecha y ha bajado a «Hecho», y GLOTÓN (SPEC 18, el 2026-09-11) e INVASORES
+(SPEC 21, el 2026-09-12) también, así que quedan dos:
 
 1. - [ ] **FLUJO** (`flujo`) — Pipe Mania. 33/35. **No está en `GAMES`**: hay que crear la
         entrada del catálogo y la portada `cover-flujo`. Sería el **segundo PUZZLE**, la
-        categoría más vacía — y con RANARIA hecha, ARCADE ya va por tres de cinco.
+        categoría más vacía — y tras INVASORES el reparto va ARCADE 4, SHOOTER 2, PUZZLE 1,
+        VERSUS 0, así que su argumento de categoría sigue intacto y sin gastar.
         · _sugerido: 2026-08-13_ · spec: —
-2. - [ ] **INVASORES** (`invasores`) — Space Invaders. 31/35. Barato y clásico, pero repite
-        el «nave que dispara» de ROCAS y quiere `ESPACIO`. · _sugerido: 2026-08-13_ · spec: —
-3. - [ ] **DUELO PIXEL** (`duelo-pixel`) — Pong. 28/35. **Bloqueado por diseño**: su marcador
+2. - [ ] **DUELO PIXEL** (`duelo-pixel`) — Pong. 28/35. **Bloqueado por diseño**: su marcador
         0–11 no compara con el resto del Salón. Antes de implementarlo hay que inventarle una
         métrica acumulativa. · _sugerido: 2026-08-13_ · spec: —
 
@@ -58,6 +57,9 @@ _No se vuelven a proponer salvo que cambie algo concreto, y entonces hay que dec
 - [x] **GLOTÓN** (`gloton`) — Pac-Man. El más caro del roadmap y el primero con IA de
       adversarios. Primer motor con **un solo aspecto**: sin ficha de skins ni selector.
       · spec: 18
+- [x] **INVASORES** (`invasores`) — Space Invaders. Primero con **escenario destruible**: los
+      cuatro búnkeres se erosionan disparo a disparo. Respondió por escrito las dos pegas que
+      arrastraba desde 2026-08-13 (el «repite ROCAS» y el «quiere `ESPACIO`»). · spec: 21
 
 ---
 
@@ -70,7 +72,7 @@ claro / un jugador / coste / aporte). El desglose por criterio está en la memor
 | ----------- | ------------- | --------- | ---------- | -----: | ------------------------------------------------------------------- |
 | ~~RANARIA~~ | `ranaria`     | ARCADE    | Sí         | **34** | **Ya implementada.** Ganó por coste bajo y mecánica nueva.          |
 | FLUJO       | `flujo`       | PUZZLE    | **No**     |     33 | Segundo PUZZLE. Empataría a 34 si no costara entrada + portada.     |
-| INVASORES   | `invasores`   | SHOOTER   | Sí         |     31 | Repite el «nave que dispara» de ROCAS, y quiere `ESPACIO`.          |
+| ~~INVASORES~~ | `invasores` | SHOOTER   | Sí         |     31 | **Ya implementado** (SPEC 21). Las dos pegas quedaron respondidas.   |
 | GLOTÓN      | `gloton`      | ARCADE    | Sí         |     31 | El más caro: laberinto + IA de cuatro fantasmas. También el mejor.  |
 | DUELO PIXEL | `duelo-pixel` | VERSUS    | Sí         |     28 | Marcador 0–11: no compara con el resto del Salón. Y necesita IA.    |
 

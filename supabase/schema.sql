@@ -8,8 +8,9 @@
 -- incluye pasos que el SQL no puede cubrir, como desactivar «Confirm email» y
 -- actualizar el project_ref en tres archivos— está en supabase/README.md.
 --
--- Sale de tres specs: SPEC 04 (perfiles y autenticación), SPEC 06 (registro de
--- partidas) y SPEC 07 (Salón de la Fama). Deja en pie diez objetos:
+-- Sale de cuatro specs: SPEC 04 (perfiles y autenticación), SPEC 06 (registro
+-- de partidas), SPEC 07 (Salón de la Fama) y SPEC 22 (endurecimiento de
+-- seguridad). Deja en pie diez objetos:
 --
 --    1. tabla    public.profiles
 --    2. política "perfiles legibles por cualquiera"        (select)
@@ -21,6 +22,11 @@
 --    8. política "cada usuario registra sus partidas"      (insert)
 --    9. índice   game_sessions_game_score_idx
 --   10. vista    public.game_leaderboard
+--
+-- Y quita un privilegio, que no es un objeto pero se olvida igual: el EXECUTE
+-- que PUBLIC, anon, authenticated y service_role tienen por defecto sobre
+-- handle_new_user (sección 4b, SPEC 22). Sin esa línea, una mudanza recrea la
+-- base con la función del trigger publicada otra vez como endpoint RPC.
 --
 -- ES IDEMPOTENTE Y NO DESTRUCTIVO. Ejecutarlo dos veces seguidas no da error y
 -- no borra una sola fila: no hay ni un `drop table`, ni un `drop schema`, ni un
@@ -35,7 +41,7 @@
 -- o este archivo se queda viejo en silencio y la próxima mudanza recrea una base
 -- de datos incompleta.
 --
--- Este archivo NO cambia el esquema. Es el reflejo exacto de las tres
+-- Este archivo NO cambia el esquema. Es el reflejo exacto de las cuatro
 -- migraciones actuales; cualquier diferencia que no sea una cláusula de
 -- idempotencia es un bug.
 --
@@ -51,6 +57,7 @@
 --   trigger    → drop trigger if exists + create trigger
 --   índice     → create index if not exists
 --   vista      → create or replace view  ⚠ ver el aviso en su sección
+--   privilegio → se ejecuta siempre (revocar algo ya revocado no es error)
 --
 -- LÍMITE CONOCIDO: `create table if not exists` no arregla una tabla que ya
 -- exista con OTRA FORMA. Si a un `profiles` viejo le falta una columna, este
@@ -121,6 +128,29 @@ begin
   return new;
 end;
 $$;
+
+-- -----------------------------------------------------------------------------
+-- 4b. …y fuera de la API pública (SPEC 22)
+-- -----------------------------------------------------------------------------
+-- Postgres concede EXECUTE a PUBLIC sobre cualquier función nueva, y Supabase
+-- añade tres grants más a sus roles. Resultado: esta función quedaba publicada
+-- en /rest/v1/rpc/handle_new_user, invocable por cualquiera, y el linter avisaba
+-- de ello dos veces (una por `anon`, otra por `authenticated`).
+--
+-- El revoke tiene que incluir a PUBLIC. Revocar solo a `anon` y `authenticated`
+-- —la letra de los avisos— deja en pie el `=X/postgres` de la ACL, que es donde
+-- está de verdad el permiso, y no arregla nada.
+--
+-- Esto NO toca la función: sigue siendo `security definer`, que es imprescindible
+-- (ver arriba), y el trigger sigue disparándola porque Postgres comprueba el
+-- EXECUTE al CREAR el trigger, no al ejecutarlo. El propietario conserva el suyo.
+--
+-- Si el registro se rompiera alguna vez por esto, el escape es devolver el
+-- permiso solo al rol que inserta en auth.users, que PostgREST no expone:
+--
+--   grant execute on function public.handle_new_user() to supabase_auth_admin;
+
+revoke all on function public.handle_new_user() from public, anon, authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
 -- 5. on_auth_user_created — el trigger que la dispara (SPEC 04)

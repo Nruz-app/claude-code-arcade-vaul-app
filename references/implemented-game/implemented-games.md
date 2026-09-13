@@ -1,17 +1,18 @@
 # Juegos implementados — Arcade Vault
 
-> **Fecha:** 2026-08-13 (revisado el 2026-09-11 al implementarse GLOTÓN)
+> **Fecha:** 2026-08-13 (revisado el 2026-09-12 al implementarse INVASORES)
 > **Fuente:** `GAME_ENGINES` (`app/lib/games/registry.ts`), los motores de
 > `app/lib/games/` y una consulta a `game_sessions` en Supabase.
 
-El catálogo (`GAMES`, en `app/lib/data.ts`) tiene **ocho juegos**, pero solo
-**seis tienen motor real**: corren sobre un canvas, se juegan de verdad y sus
-partidas se registran en la base de datos. Los otros dos (`invasores` y
-`duelo-pixel`) siguen cayendo en el reproductor simulado, que es un
-`setInterval` subiendo un número.
+El catálogo (`GAMES`, en `app/lib/data.ts`) tiene **ocho juegos**, y ya
+**siete tienen motor real**: corren sobre un canvas, se juegan de verdad y sus
+partidas se registran en la base de datos. Solo queda uno (`duelo-pixel`)
+cayendo en el reproductor simulado, que es un `setInterval` subiendo un número
+— y sigue bloqueado por diseño, porque su marcador 0–11 no compara con el resto
+del Salón.
 
-La lista de abajo son los seis reales. **La base de datos ya no sirve para
-confirmarlo**: hoy solo hay partidas de cuatro `game_id`, porque el proyecto de
+La lista de abajo son los siete reales. **La base de datos ya no sirve para
+confirmarlo**: hoy solo hay partidas de cinco `game_id`, porque el proyecto de
 Supabase se recreó (SPEC 15) y las partidas anteriores no se migraron. Que un
 juego no tenga filas en `game_sessions` dice que nadie lo ha jugado desde la
 mudanza, no que le falte motor. La fuente de verdad de qué tiene motor es
@@ -29,16 +30,17 @@ mudanza, no que le falte motor. La fuente de verdad de qué tiene motor es
 | **SERPENTINA**    | `serpentina`    | Snake     | ARCADE    | `snake.ts`     | 10                        | — (1 → 0) |
 | **RANARIA**       | `ranaria`       | Frogger   | ARCADE    | `frogger.ts`   | `game-jam/ranaria/` + 11  | 3         |
 | **GLOTÓN**        | `gloton`        | Pac-Man   | ARCADE    | `pacman.ts`    | 18                        | 3         |
+| **INVASORES**     | `invasores`     | Space Inv. | SHOOTER   | `invaders.ts`  | 21                        | 3         |
 
 Los ids están en español a propósito y no delatan el clásico que son. Son los
 slugs de las URLs: `/juego/serpentina` y `/juego/serpentina/jugar`.
 
-Los cinco comparten plataforma: canvas de **800×600**, la partida no arranca
+Los siete comparten plataforma: canvas de **800×600**, la partida no arranca
 hasta pulsar **ESPACIO** en el overlay, `ESC` pausa y reanuda, cambiar de
 pestaña pausa solo, y al terminar se abre el modal de fin. Nada de eso lo
 implementa el juego: lo pone el reproductor.
 
-**Solo RANARIA suena.** Los otros cinco son mudos, y el sonido lo dispara el
+**Solo RANARIA y BLOQUE BUSTER suenan.** Los otros cinco son mudos, y el sonido lo dispara el
 motor con `crearSfx()` (`app/lib/games/audio.ts`), nunca el reproductor.
 
 ---
@@ -198,24 +200,73 @@ Tres cosas que lo hacen distinto de los otros cinco:
 
 ---
 
+## INVASORES — `invasores`
+
+Space Invaders. **El séptimo** (SPEC 21) y el primero con **escenario
+destruible**. Escrito desde cero, sin material de referencia: los juegos de
+`references/templates/started-games/` se agotaron con BLOQUE BUSTER.
+
+- **Motor:** `app/lib/games/invaders.ts` (1479 líneas)
+- **Controles:** `← →` mover · `ESPACIO` o `↑` disparar · `ESC` pausa. **Sí usa
+  ESPACIO**, como ROCAS: no choca con el overlay de arranque porque cuando la
+  partida corre el overlay ya no está montado.
+- **Puntuación:** invasor de la fila de arriba 30 · filas centrales 20 · filas de
+  abajo 10 · nave nodriza 50/100/150/300 al azar. Una oleada limpia da 990.
+- **Vidas:** 3, más una extra a los 1 500 puntos.
+- **Nivel:** sube al limpiar los 55 invasores. Cada oleada repone los búnkeres y
+  arranca un escalón más abajo, con tope a las ocho.
+- **Extras:** cuatro escudos que se erosionan, nave nodriza, una sola bala del
+  jugador en vuelo y aceleración de la formación según cuántos quedan vivos.
+
+Cuatro cosas que conviene saber antes de tocarlo:
+
+1. **Es el primero con escenario destruible.** Cada búnker es un `Uint8Array` de
+   22×16 celdas que se **reusa** entre oleadas en vez de recrearse, y lo erosionan
+   tres agentes distintos: la bala del jugador, la del invasor y el invasor que
+   baja hasta él. La dirección importa —una bala que sube revienta la celda más
+   baja que toca y una que baja la más alta—, y con un solo criterio el disparo
+   propio abriría el boquete en el techo atravesando el resto sin tocarlo.
+2. **La formación se mueve a pasos discretos**, como el arcade. De ahí salen dos
+   cosas gratis: la animación no necesita reloj propio (el fotograma alterna con
+   cada paso) y la aceleración por bajas es una **función** de cuántos quedan
+   vivos, no un estado que se pueda desincronizar.
+3. **Una sola bala en vuelo**, que es el límite del original y lo que convierte
+   el juego en puntería en vez de en cortina de fuego. Se lee con `wasPressed`,
+   así que no depende del auto-repeat del sistema — que además el mando táctil no
+   manda: al apoyar el dedo llega un solo `keydown`.
+4. **Un solo rol de color para los tres tipos de invasor.** En el arcade eran del
+   mismo blanco y se distinguen por silueta y por fila; tres roles harían
+   imposible declarar honestamente la paleta `clasico`, que es monocroma. Su
+   `clasico` reproduce el gabinete del 78, donde el color no lo daba el tubo sino
+   dos tiras de celofán: verde en la franja baja y roja arriba.
+
+**El juego es una carrera, y está medida**: sin que nadie dispare, la formación
+tarda **282 s** en cruzar la línea del cañón; limpiarla apuntando cuesta unos
+**55 s**. Si algún día se toca el ritmo del descenso, ese es el margen que no hay
+que romper.
+
+---
+
 ## Partidas registradas
 
-Consulta a `game_sessions` del **11/09/2026** (fechas en UTC). Son datos de
+Consulta a `game_sessions` del **12/09/2026** (fechas en UTC). Son datos de
 desarrollo, de las pruebas de cada spec, no de uso real:
 
 | Juego         | Partidas | Jugadores | Mejor score | Nivel máx. | Duración media | Última partida |
 | ------------- | -------- | --------- | ----------- | ---------- | -------------- | -------------- |
 | BLOQUE BUSTER | 5        | 1         | 3 900       | 1          | 23 s           | 03/09/2026     |
 | CAÍDA         | 2        | 1         | 251         | 1          | 102 s          | 04/09/2026     |
+| GLOTÓN        | 1        | 1         | 910         | 1          | 20 s           | 11/09/2026     |
 | ROCAS         | 1        | 1         | 3 830       | 2          | 73 s           | 05/09/2026     |
 | SERPENTINA    | 1        | 1         | 50          | 1          | 16 s           | 05/09/2026     |
 
-**9 partidas en total**, de cuatro `game_id`. **RANARIA y GLOTÓN no tienen
+**10 partidas en total**, de cinco `game_id`. **RANARIA e INVASORES no tienen
 ninguna**, y eso no dice nada de sus motores: la tabla se vació al recrearse el
 proyecto de Supabase (SPEC 15) y desde entonces nadie ha jugado a RANARIA;
-GLOTÓN acaba de nacer. La revisión anterior de este documento (14/08/2026)
-contaba 23 partidas y afirmaba que los cinco motores de entonces tenían filas
-—cierto aquel día, ya no.
+INVASORES acaba de nacer, y las partidas con las que se verificó fueron **como
+invitado**, que van a `localStorage` y no a la base. La revisión anterior de este
+documento (14/08/2026) contaba 23 partidas y afirmaba que los cinco motores de
+entonces tenían filas —cierto aquel día, ya no.
 
 Lección para la próxima revisión: **`game_sessions` mide quién ha jugado, no qué
 está implementado.** Para lo segundo, `GAME_ENGINES`.
@@ -230,21 +281,24 @@ está implementado.** Para lo segundo, `GAME_ENGINES`.
 
 ## Pendientes
 
-Los dos que siguen con el reproductor simulado. El id ya existe en `GAMES`:
-al implementarlos hay que usar ese, no inventar uno nuevo.
+El único que sigue con el reproductor simulado. El id ya existe en `GAMES`:
+al implementarlo hay que usar ese, no inventar uno nuevo.
 
-| Juego       | Id            | Clásico        | Categoría |
-| ----------- | ------------- | -------------- | --------- |
-| INVASORES   | `invasores`   | Space Invaders | SHOOTER   |
-| DUELO PIXEL | `duelo-pixel` | Pong           | VERSUS    |
+| Juego       | Id            | Clásico | Categoría |
+| ----------- | ------------- | ------- | --------- |
+| DUELO PIXEL | `duelo-pixel` | Pong    | VERSUS    |
 
-Ninguno tiene código de referencia: como SERPENTINA, RANARIA y GLOTÓN, habría
-que escribirlos enteros con las mecánicas fijadas en su spec.
+**Y está bloqueado por diseño**, no por coste: su marcador 0–11 no compara con
+los 184 220 de CAÍDA en el Salón, así que antes de escribir una línea hay que
+inventarle una métrica acumulativa (rally más largo, toques totales). Tampoco
+tiene código de referencia: como SERPENTINA, RANARIA, GLOTÓN e INVASORES, habría
+que escribirlo entero con las mecánicas fijadas en su spec.
 
-Hay además un tercer candidato que **no está en `GAMES`**: FLUJO (`flujo`, Pipe
+Hay además un segundo candidato que **no está en `GAMES`**: FLUJO (`flujo`, Pipe
 Mania), el nº 1 del roadmap por puntuación. Ese sí obliga a crear la entrada del
 catálogo y su portada `cover-flujo`. Sería el segundo PUZZLE, que junto a VERSUS
-es la categoría más vacía — y con GLOTÓN hecha, ARCADE ya va por cuatro de seis.
+es la categoría más vacía — y tras INVASORES el reparto va ARCADE 4, SHOOTER 2,
+PUZZLE 1, VERSUS 0, así que ese argumento sigue intacto y sin gastar.
 
 El orden en que conviene atacarlos, y por qué, está en
 `game-suggestions-todo.md`, en esta misma carpeta.

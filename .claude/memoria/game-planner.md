@@ -15,17 +15,17 @@ Estados posibles:
 `Id` es el del catálogo `GAMES` (`app/lib/data.ts`), en español. `Spec` es el archivo de
 `specs/` cuando existe.
 
-| Fecha      | Juego          | Id              | Estado         | Spec                                 | Razón                                                                                                                                                                                                             |
-| ---------- | -------------- | --------------- | -------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-08-13 | Asteroids      | `rocas`         | `implementado` | `05-juego-rocas-asteroids.md`        | Primer juego real. Fijó el contrato `GameFactory` y las convenciones de canvas 800×600.                                                                                                                           |
-| 2026-08-13 | Tetris         | `caida`         | `implementado` | `08-juego-caida-tetris.md`           | Primer porte con `/nuevo-juego`. Sin vidas: emite `onLives(1)`/`onLives(0)`.                                                                                                                                      |
-| 2026-08-13 | Arkanoid       | `bloque-buster` | `implementado` | `09-juego-bloque-buster-arkanoid.md` | Agotó los juegos de `references/templates/started-games/`. Ganar se registra como `game_over`.                                                                                                                    |
-| 2026-08-13 | Snake          | `serpentina`    | `implementado` | `10-juego-serpentina-snake.md`       | Primero escrito desde cero, sin código de referencia, y primero con sprites (`public/snake-fruits.png`).                                                                                                          |
-| 2026-08-13 | Frogger        | `ranaria`       | `implementado` | `specs/game-jam/ranaria/` + `11`     | Ganó con 34/35 y se implementó el mismo día. La spec no salió de `/nuevo-juego` sino del agente `game-jam` (tema: "la ranita"); la SPEC 11 le añadió después el sonido, y es el único juego del portal que suena. |
-| 2026-08-13 | Pipe Mania     | `flujo`         | `propuesto`    | —                                    | 33/35, nº 1 del roadmap. **No está en `GAMES`**: pide entrada de catálogo y portada `cover-flujo`, acento `magenta`. Sería el segundo PUZZLE, la categoría más vacía.                                             |
-| 2026-08-13 | Space Invaders | `invasores`     | `propuesto`    | —                                    | 31/35, nº 2 del roadmap. Barato, pero repite el «nave que dispara» de ROCAS y quiere `ESPACIO`.                                                                                                                   |
-| 2026-08-13 | Pac-Man        | `gloton`        | `implementado` | `18-juego-gloton-pacman.md`          | 31/35, nº 3 del roadmap **por coste, no por valor**: es el mejor juego de la lista y el más caro. Súbelo si el objetivo es un juego grande.                                                                       |
-| 2026-08-13 | Pong           | `duelo-pixel`   | `propuesto`    | —                                    | 28/35, nº 4 y **bloqueado por diseño**: el marcador 0–11 no compara en el Salón. No implementar sin resolver antes la métrica de puntuación.                                                                      |
+| Fecha      | Juego          | Id              | Estado         | Spec                                   | Razón                                                                                                                                                                                                             |
+| ---------- | -------------- | --------------- | -------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-13 | Asteroids      | `rocas`         | `implementado` | `05-juego-rocas-asteroids.md`          | Primer juego real. Fijó el contrato `GameFactory` y las convenciones de canvas 800×600.                                                                                                                           |
+| 2026-08-13 | Tetris         | `caida`         | `implementado` | `08-juego-caida-tetris.md`             | Primer porte con `/nuevo-juego`. Sin vidas: emite `onLives(1)`/`onLives(0)`.                                                                                                                                      |
+| 2026-08-13 | Arkanoid       | `bloque-buster` | `implementado` | `09-juego-bloque-buster-arkanoid.md`   | Agotó los juegos de `references/templates/started-games/`. Ganar se registra como `game_over`.                                                                                                                    |
+| 2026-08-13 | Snake          | `serpentina`    | `implementado` | `10-juego-serpentina-snake.md`         | Primero escrito desde cero, sin código de referencia, y primero con sprites (`public/snake-fruits.png`).                                                                                                          |
+| 2026-08-13 | Frogger        | `ranaria`       | `implementado` | `specs/game-jam/ranaria/` + `11`       | Ganó con 34/35 y se implementó el mismo día. La spec no salió de `/nuevo-juego` sino del agente `game-jam` (tema: "la ranita"); la SPEC 11 le añadió después el sonido, y es el único juego del portal que suena. |
+| 2026-08-13 | Pipe Mania     | `flujo`         | `propuesto`    | —                                      | 33/35, nº 1 del roadmap. **No está en `GAMES`**: pide entrada de catálogo y portada `cover-flujo`, acento `magenta`. Sería el segundo PUZZLE, la categoría más vacía.                                             |
+| 2026-08-13 | Space Invaders | `invasores`     | `implementado` | `21-juego-invasores-space-invaders.md` | 31/35, nº 2 del roadmap. Barato, pero repite el «nave que dispara» de ROCAS y quiere `ESPACIO`.                                                                                                                   |
+| 2026-08-13 | Pac-Man        | `gloton`        | `implementado` | `18-juego-gloton-pacman.md`            | 31/35, nº 3 del roadmap **por coste, no por valor**: es el mejor juego de la lista y el más caro. Súbelo si el objetivo es un juego grande.                                                                       |
+| 2026-08-13 | Pong           | `duelo-pixel`   | `propuesto`    | —                                      | 28/35, nº 4 y **bloqueado por diseño**: el marcador 0–11 no compara en el Salón. No implementar sin resolver antes la métrica de puntuación.                                                                      |
 
 ## Candidatos vivos del catálogo (aún sin motor)
 
@@ -111,3 +111,28 @@ del usuario sobre el rumbo del catálogo, huecos detectados)_
   Reparto tras GLOTÓN: ARCADE 4, SHOOTER 1, PUZZLE 1, VERSUS 0 — **PUZZLE y VERSUS siguen
   siendo los huecos**, y el argumento de categoría que empujaba a `flujo` sigue intacto y sin
   gastar.
+
+- 2026-09-12 — **INVASORES implementado** (SPEC 21, `app/lib/games/invaders.ts`). Séptimo
+  motor del portal. Las dos pegas que esta memoria le tenía anotadas desde el 2026-08-13
+  quedaron respondidas por escrito en la spec, y conviene no volver a levantarlas sin
+  argumentos nuevos: **«repite el nave que dispara de ROCAS»** es cierto en la descripción
+  y falso en la mano —ROCAS es inercia y rotación en un espacio toroidal, y la dificultad
+  está en frenar; INVASORES es un carril sin inercia con **una sola bala en pantalla**, y
+  la dificultad está en no fallar—; y **«quiere `ESPACIO`»** no era un conflicto, porque
+  ROCAS ya la declara desde la SPEC 05 y convive con el overlay de arranque: cuando la
+  partida corre, el overlay ya no está montado.
+- 2026-09-12 — Tres cosas medidas durante la implementación que sirven para evaluar futuros
+  candidatos. **El escenario destruible salió barato**: los cuatro búnkeres son un
+  `Uint8Array` de 352 bytes cada uno y toda su lógica cabe en tres funciones puras, así que
+  «el juego tiene terreno que se rompe» no debería seguir contando como coste alto.
+  **Un jugador guionizado no sirve para verificar un juego de puntería**: tres estrategias
+  distintas se quedaron en 830 de los 990 puntos de la primera oleada, así que el fin de
+  oleada quedó cubierto por helpers puros y verificado a mano, no de punta a punta.
+  Y **la carrera del juego está medida**: la formación tarda **282 s** en cruzar la línea
+  del cañón sin que nadie dispare, contra los ~55 s que cuesta limpiarla apuntando.
+- 2026-09-12 — Reparto tras INVASORES: **ARCADE 4, SHOOTER 2, PUZZLE 1, VERSUS 0**. El
+  argumento de categoría que empujaba a `flujo` **sigue intacto y sin gastar**: PUZZLE tiene
+  un solo juego y VERSUS ninguno, así que `flujo` (33/35) se queda como nº 1 del roadmap y
+  con un motivo más que antes. Recuerda que es la única propuesta que **no** está en `GAMES`:
+  pide entrada de catálogo y portada `cover-flujo`, acento `magenta`. El otro que queda,
+  `duelo-pixel`, sigue bloqueado por su métrica de puntuación.

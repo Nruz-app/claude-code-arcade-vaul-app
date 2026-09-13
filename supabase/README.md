@@ -36,8 +36,8 @@ falsas en una tabla del sistema.
 | ----- | --------------------------------------------------------------- |
 | **1** | ¿Está pausado o desaparecido? Restaurar, o crear proyecto nuevo |
 | **2** | Ejecutar `schema.sql` por una de las tres vías                  |
-| **3** | Desactivar _Confirm email_ en el dashboard                      |
-| **4** | Actualizar el `project_ref` en los **tres** archivos            |
+| **3** | Cuatro ajustes de _Authentication_ en el dashboard              |
+| **4** | Actualizar el `project_ref`: tres archivos, y dos sitios más    |
 | **5** | `npm run db:check` hasta que salga en verde                     |
 | **6** | Registrarse, jugar una partida y verla en `/salon`              |
 
@@ -121,7 +121,17 @@ valor del paso 4 está en que la lista sea corta.
 
 ---
 
-### Paso 3 — Desactivar _Confirm email_
+### Paso 3 — Cuatro ajustes de _Authentication_
+
+Los cuatro viven en el dashboard, así que el repositorio no puede fijarlos, y cada
+uno rompe algo distinto si se olvida. Están en pantallas diferentes.
+
+El **3c es el único opcional**: sin él el portal funciona entero con correo y
+contraseña, y lo que se pierde es entrar con Google o GitHub. El **3d no rompe
+nada si se olvida** —el portal funciona igual— pero deja el proyecto con la
+política de contraseñas por defecto y un aviso encendido en _Advisors_.
+
+#### 3a — Desactivar _Confirm email_
 
 Dashboard → **Authentication → Sign In / Providers → Email** → desactivar
 **Confirm email**.
@@ -162,9 +172,138 @@ console.log("registro bloqueado      :", s.disable_signup);         // debe ser 
 Los tres valores tienen que salir `true`, `true`, `false`. Cualquier otra
 combinación se arregla en esta misma pantalla del dashboard.
 
+#### 3b — Autorizar la URL de vuelta de `/auth/confirmar`
+
+Dashboard → **Authentication → URL Configuration → Redirect URLs** → añadir:
+
+```
+http://localhost:3000/auth/confirmar
+```
+
+y, si el portal está desplegado, también la de producción
+(`https://<dominio>/auth/confirmar`).
+
+Es lo que necesita el flujo de recuperación de contraseña (SPEC 19).
+`/auth/recuperar` llama a `resetPasswordForEmail` pasando esa dirección en
+`redirectTo`, y **Supabase solo respeta un `redirectTo` que esté en esta lista**:
+si no está, ignora el parámetro sin avisar y manda al usuario al _Site URL_. El
+síntoma es de los que despistan, porque el correo llega y el enlace funciona —
+solo que aterriza en la portada en vez de en la pantalla para escribir la
+contraseña nueva, y nadie puede cambiarla.
+
+_Confirm email_ (3a) y esto son independientes: **la recuperación de contraseña
+manda correo aunque la confirmación de registro esté desactivada**, porque son
+plantillas distintas. Tenerla apagada no impide probar el flujo.
+
+> El SMTP por defecto de Supabase permite muy pocos correos por hora. Probando la
+> recuperación se agota enseguida, y a partir de ahí `/auth/recuperar` muestra
+> "DEMASIADOS INTENTOS, PRUEBA EN UN RATO". Es el plan gratuito, no un fallo.
+
+#### 3c — Activar Google y GitHub
+
+Lo que pide la SPEC 20. Son **dos altas fuera de Supabase** más dos pares de
+credenciales dentro, y es la parte más larga de todo el runbook.
+
+Las dos aplicaciones apuntan a la **misma** URL de vuelta, que es de Supabase y no
+del portal — la muestra la propia tarjeta del proveedor en el dashboard:
+
+```
+https://<project_ref>.supabase.co/auth/v1/callback
+```
+
+`/auth/confirmar` **no** se pone aquí: el navegador pasa primero por Supabase, y es
+Supabase quien reenvía al portal usando la lista de 3b.
+
+1. **GitHub** → _Settings → Developer settings → OAuth Apps → New OAuth App_. La
+   _Homepage URL_ puede ser `http://localhost:3000`; la **Authorization callback
+   URL** es la de arriba. Genera un _client secret_ y cópialo antes de salir: no se
+   vuelve a mostrar.
+2. **Google** → _Cloud Console → APIs & Services_. Primero la **pantalla de
+   consentimiento** (_OAuth consent screen_) y luego _Credentials → Create
+   credentials → OAuth client ID_, tipo _Web application_, con la misma URL en
+   **Authorized redirect URIs**. Esto es bastante más pesado que GitHub: cuenta con
+   ello.
+3. En Supabase → _Authentication → Sign In / Providers_, abre **Google** y
+   **GitHub**, activa cada uno y pega su _Client ID_ y su _Client Secret_.
+
+**Cómo comprobar que quedó bien** sin pulsar un botón, con el mismo endpoint público
+que usa 3a:
+
+```bash
+node --env-file=.env -e '
+const r = await fetch(process.env.NEXT_PUBLIC_SUPABASE_URL + "/auth/v1/settings", {
+  headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY },
+});
+const s = await r.json();
+console.log("google:", s.external?.google, "| github:", s.external?.github);
+'
+```
+
+> ⚠ **`external.google: true` no significa que esté configurado.** Ese campo dice
+> que el proveedor está activado, no que sus credenciales sirvan. La comprobación de
+> verdad es pulsar el botón en `/auth/login`: si sales a la pantalla del proveedor,
+> está bien; si se queda en la tarjeta con "ESE ACCESO NO ESTÁ DISPONIBLE TODAVÍA",
+> es que falta el alta.
+
+Mientras un proveedor no esté activado, su botón **no se esconde**: muestra ese
+mensaje. Es deliberado (SPEC 20), para no preguntar la configuración en cada render.
+
+> ⚠ **Google: la pantalla de consentimiento nace en modo _Testing_**, y en ese
+> modo **solo entran los correos que estén en su lista de usuarios de prueba**. El
+> resto ve un «Acceso bloqueado» diciendo que la aplicación no ha completado la
+> verificación de Google — y aparece **después** de teclear el correo, así que el
+> botón, el redirect URI y Supabase parecen estar bien, porque lo están.
+>
+> Dos salidas, en _Cloud Console → Google Auth Platform → **Audience**_:
+>
+> - **Añadirte como usuario de prueba** (_Test users → Add users_). Inmediato, sin
+>   revisión, admite hasta 100 correos. Es lo que hace falta para desarrollar.
+> - **Publicar la app** (_Publish app_). Permanente y para cualquiera. **No exige
+>   la revisión de Google** en este caso, porque Supabase solo pide los permisos
+>   no sensibles `openid`, `email` y `profile`.
+>
+> GitHub no tiene equivalente: una OAuth App sirve a cualquier cuenta desde el
+> minuto uno.
+
+#### 3d — Política de contraseñas y límite de registros
+
+Lo que pide la SPEC 22. Son tres interruptores en dos pantallas, y ninguno tiene
+código detrás: el repositorio no puede fijarlos.
+
+En _Authentication → **Sign In / Providers** → Email_, la misma tarjeta del 3a:
+
+1. **Minimum password length** → **8**. Supabase viene con 6. El número está
+   también en `app/auth/errores.ts` (`MIN_PASSWORD`), que es lo que valida el
+   formulario antes de salir a la red y lo que dice el mensaje de error: si aquí
+   pones otro valor, cámbialo también allí o los dos se contradicen.
+2. **Leaked password protection** → **activada**. Comprueba la contraseña contra
+   HaveIBeenPwned. Es el aviso `auth_leaked_password_protection` de _Advisors_, y
+   es el único de los tres que se puede verificar desde fuera.
+
+En _Authentication → **Rate Limits**_:
+
+3. El límite de **registros e inicios de sesión por hora y por IP** → **10**. Por
+   defecto es 30. Diez es de sobra para cualquier uso legítimo de un portal de
+   juegos, incluida una demo con varias personas en la misma red; si te quedas
+   corto en una clase, súbelo — el valor no es sagrado, pero el límite sí.
+
+**Cómo comprobar que quedó bien**, sin crear una cuenta: en el dashboard,
+_Advisors → Security_, el aviso **Leaked Password Protection Disabled** tiene que
+haber desaparecido. Los otros dos no asoman por ningún endpoint público; se ven
+en su pantalla o probándolos.
+
+> ⚠ **El mínimo se aplica al crear y al cambiar la contraseña, no al entrar.**
+> Una cuenta con una contraseña de 6 caracteres de antes sigue pudiendo iniciar
+> sesión. Esto no echa a nadie fuera.
+
+> ⚠ **Los mensajes de error del portal casan por texto literal.** Si cambias el
+> mínimo, el mensaje que devuelve Supabase cambia con él («…at least 8
+> characters») y `app/auth/errores.ts` tiene que llevar exactamente esa cadena, o
+> el usuario acaba leyendo el genérico «NO SE PUDO COMPLETAR LA OPERACIÓN».
+
 ---
 
-### Paso 4 — El `project_ref`, en tres archivos
+### Paso 4 — El `project_ref`: tres archivos, y dos sitios más
 
 El `project_ref` vive en tres sitios y hay que cambiarlo en los tres. Olvidar
 uno deja la app o el MCP apuntando al proyecto muerto, con un error que no dice
@@ -183,6 +322,33 @@ grep -rn "<project_ref_viejo>" .env .env.example .mcp.json
 ```
 
 Si devuelve algo, todavía falta uno.
+
+#### Y dos sitios más, fuera del repositorio, si hiciste el 3c
+
+**El `grep` de arriba no los ve, y una mudanza los rompe los dos.** La URL de
+vuelta que llevan registradas las aplicaciones OAuth **contiene el
+`project_ref`**:
+
+```
+https://<project_ref>.supabase.co/auth/v1/callback
+```
+
+Así que al mudarse hay que editarla en los dos sitios donde vive:
+
+| Dónde                                                | Campo                      |
+| ---------------------------------------------------- | -------------------------- |
+| GitHub → Settings → Developer settings → OAuth Apps  | Authorization callback URL |
+| Google Cloud Console → APIs & Services → Credentials | Authorized redirect URIs   |
+
+**El síntoma no menciona Supabase ni el portal**, y es de los que hacen perder
+una tarde buscando en el sitio equivocado. GitHub responde:
+
+> **Be careful!** The `redirect_uri` is not associated with this application.
+
+Y Google, un `Error 400: redirect_uri_mismatch`. Los dos suenan a que la
+aplicación está mal programada; lo que pasa es que apuntan al proyecto anterior.
+La consola del navegador sale limpia, porque nadie ha fallado del lado del
+portal.
 
 ---
 
@@ -216,17 +382,26 @@ no que haya filas. Tras una mudanza no hay ninguna.
 
 Qué significa cada fallo:
 
-| Sale                                  | Qué pasó                                                           | Qué hacer                          |
-| ------------------------------------- | ------------------------------------------------------------------ | ---------------------------------- |
-| `No se pudo resolver …`               | El host no existe: el proyecto se borró                            | Paso 1                             |
-| `respondió 5xx al comprobar su salud` | El host resuelve pero no sirve: suele estar pausado                | Paso 1, _Restore_                  |
-| `NO EXISTE — falta por crear`         | El proyecto está vivo pero el esquema no se aplicó                 | Paso 2                             |
-| `ACEPTADO — ¡FALLO GRAVE!`            | Un anónimo pudo escribir en `game_sessions`: la RLS no está puesta | Paso 2, y borra la fila `db-check` |
-| `Falta en .env: …`                    | El `.env` está a medias                                            | Paso 4                             |
+| Sale                                  | Qué pasó                                                                  | Qué hacer                          |
+| ------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------- |
+| `No se pudo resolver …`               | El host no existe: el proyecto se borró                                   | Paso 1                             |
+| `respondió 5xx al comprobar su salud` | El host resuelve pero no sirve: suele estar pausado                       | Paso 1, _Restore_                  |
+| `NO EXISTE — falta por crear`         | El proyecto está vivo pero el esquema no se aplicó                        | Paso 2                             |
+| `ACEPTADO — ¡FALLO GRAVE!`            | Un anónimo pudo escribir en `game_sessions`: la RLS no está puesta        | Paso 2, y borra la fila `db-check` |
+| `EXPUESTA — falta el revoke`          | `handle_new_user()` es alcanzable en `/rest/v1/rpc/`: falta la sección 4b | Paso 2                             |
+| `Falta en .env: …`                    | El `.env` está a medias                                                   | Paso 4                             |
 
 El **trigger no se puede verificar aquí**: probarlo de verdad exige registrar un
 usuario, y el script no va a dejar basura en `auth.users` en cada ejecución. Eso
 lo prueba el paso 6.
+
+Lo que sí verifica, desde la SPEC 22, es que **su función no esté publicada como
+endpoint RPC**. Ojo con la trampa de esa comprobación: la llamada a
+`/rest/v1/rpc/handle_new_user` falla **también** sin el revoke, porque una función
+de trigger no se puede invocar directamente. Por eso el script no mira si la
+llamada falló, sino **por qué**: `PGRST202` o `42501` significan cerrada; `0A000`
+—«trigger functions can only be called as triggers»— significa que sigue abierta
+y cuenta como fallo.
 
 ---
 
@@ -236,7 +411,7 @@ lo prueba el paso 6.
 npm run dev
 ```
 
-1. `/auth` → registrar una cuenta nueva.
+1. `/auth/registro` → registrar una cuenta nueva.
 2. Comprobar que **el nombre aparece en la barra de navegación**. Si aparece, el
    trigger `on_auth_user_created` funcionó: creó la fila en `profiles` tomando el
    nombre de `raw_user_meta_data.username`, en mayúsculas y cortado a 10

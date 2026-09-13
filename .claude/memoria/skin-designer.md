@@ -1,7 +1,12 @@
 # Memoria de skin-designer
 
-Los quince pares motor × skin de Arcade Vault, con lo que se decidió en cada uno y lo que se
-midió. La escribe y la lee el subagente `skin-designer` (`.claude/agents/skin-designer.md`).
+Los dieciocho pares motor × skin de Arcade Vault, con lo que se decidió en cada uno y lo que
+se midió. La escribe y la lee el subagente `skin-designer` (`.claude/agents/skin-designer.md`).
+
+Son dieciocho y no veintiuno porque **GLOTÓN (`gloton`) no tiene ficha, y es a propósito**: la
+SPEC 18 le dio un solo aspecto, el clásico, así que no está en `GAME_PALETAS` y el reproductor
+no le enseña el selector. La razón está escrita en `app/lib/games/registry.ts`, encima del
+mapa. No es una fila pendiente: es un motor que queda fuera de este sistema.
 
 **Las filas no se borran ni se reescriben**: solo cambia la columna `Estado` y se rellenan las
 medidas. Un histórico reescrito no es un histórico.
@@ -40,6 +45,9 @@ como **máximo** para las superficies.
 | 2026-08-14 | RANARIA       | `ranaria`       | `neon`    | `pendiente`    | —          | —             | Veintiséis roles, el más caro. Los cinco literales crudos de `CARRILES` tienen que pasar a nombres de rol, o un skin no los alcanza.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | 2026-08-14 | RANARIA       | `ranaria`       | `retro`   | `pendiente`    | —          | —             | Los grupos se declaran **por banda** (río y carretera), no globalmente: troncos y coches nunca comparten franja, así que no compiten.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 2026-08-14 | RANARIA       | `ranaria`       | `clasico` | `pendiente`    | —          | —             | Rana lima, agua azul, troncos marrones y coches en blanco/amarillo/púrpura/azul. Ojo con el azul del agua: cabe como `superficie` pero está cerca del máximo.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 2026-09-12 | INVASORES     | `invasores`     | `neon`    | `implementado` | 3,51:1     | `suelo`       | Diez roles. **Nació con ficha** (SPEC 21): no hubo literales que mover ni fuga que cerrar — las diez asignaciones de `fillStyle` del motor salen todas de la paleta y no hay `shadowColor`, `strokeStyle`, `globalAlpha`, gradiente ni patrón en todo el archivo. Auditado sin tocar un valor. **No le toca fila en la tabla «de oro»** de `tests/games/skins.test.ts`, que guarda literales _anteriores_ a la SPEC 13: aquí no hay «antes», igual que en RANARIA. **Un solo rol para los tres tipos de invasor**, que es lo que hace declarable un `clasico` monocromo. `canon` y `balaJugador` comparten literal (`#00f5ff`) a propósito. Peor jugable: `nodriza` 5,48:1.                                                                                                                                                                                                                       |
+| 2026-09-12 | INVASORES     | `invasores`     | `retro`   | `revisado`     | 2,85:1     | `suelo`       | Ámbar del portal, tono 30–46° (la casa va de 2° en BLOQUE BUSTER a 21° en ROCAS: cabe, es un tono). Vocabulario compartido con los `retro` ya cerrados: `#ffcf70` es la nave de ROCAS, `#c07800` su roca, `#ffb000` la base y `#ff8c1a` su mejora. **Una corrección**: `explosion` sube de `#ffe9a8` (17,47:1) a `#fff3d7` (19,05:1). La explosión sustituye al cañón en la misma posición y con la misma huella (las dos siluetas son 13×8 y `draw()` pinta una o la otra), así que el color es la mitad del aviso de «te han dado»; en neón lo da un salto de tono de 137° (cian → oro) y aquí, con un solo tono, tiene que darlo la luminancia — y 1,21× sobre el cañón queda por debajo del 1,3× que la casa exige. Ahora 1,32×. Peor jugable: `escudo` 5,93:1.                                                                                                                               |
+| 2026-09-12 | INVASORES     | `invasores`     | `clasico` | `revisado`     | 3,54:1     | `suelo`       | El gabinete del 78: tubo monocromo blanco y dos tiras de celofán, verde abajo (cañón, escudo, suelo, explosión) y roja arriba (nodriza). **Una corrección**: `puntosNodriza` pasa de `#ffffff` a `#ff2222` (5,50:1, sobre el mínimo 4,5 de texto). El número flota en la posición exacta de la nodriza (`Y_NODRIZA + ALTO_NODRIZA / 2`), o sea dentro de la tira roja; en blanco era el único rol que se salía de su propia banda. Comparte literal con `nodriza` sin coste: al crear el número el motor hace `nodriza = null`. **Desviación del original, por distinguibilidad y no por contraste**: `balaInvasor` es `#bfbfbf` (11,42:1) y no el blanco del tubo, porque `balaJugador`/`balaInvasor` son dos rectángulos de 3×9 idénticos y en el arcade los separaba la animación de tres fotogramas de la bala enemiga, que aquí no existe (quedan a 1,84×). Peor jugable: `nodriza` 5,50:1.  |
 
 ## Orden recomendado
 
@@ -115,3 +123,37 @@ para RANARIA:
    ~1,33× ocupan de 3,16:1 a 17,41:1 y dejan casi todo el rango físico consumido; el octavo no
    entra. Que el que sobra sea justo la pieza reconocible por su silueta no es suerte: es la
    razón por la que se puede sacar sin que nadie vea peor.
+
+**2026-09-12** — INVASORES cerrado. **Primer motor que llega aquí ya con sus tres paletas
+escritas y registradas**: la SPEC 21 lo implementó con ficha, así que esta invocación no fue
+un reskineado sino una auditoría. Cambia el trabajo, y conviene saberlo para los que vengan
+igual:
+
+1. **Cuando no hay literales que mover, el veto de neón se cumple solo y lo que queda es el de
+   coherencia de época.** No hubo fugas que cerrar (diez `fillStyle`, todos desde la paleta,
+   ningún `shadowColor` ni gradiente), así que la auditoría se fue entera a preguntar si cada
+   skin cumple _su propia premisa_, que es lo que ningún umbral mide. Las dos correcciones
+   salieron de ahí y ninguna de un test en rojo: `verificaSkins` ya pasaba antes de tocar nada.
+2. **Un rol que aparece dentro de una banda tiene que llevar el color de esa banda.** En un
+   `clasico` de celofán la premisa es geométrica, no cromática: el número de puntos de la
+   nodriza se pinta en la posición de la nodriza, o sea en la tira roja, y estaba en blanco. Es
+   el mismo tipo de fallo que un literal suelto en una función de dibujo, pero no lo encuentra
+   ningún grep — hay que cruzar cada rol con las coordenadas en las que se dibuja.
+3. **Un cambio de sprite en el sitio es un par que hay que medir aunque no esté en ningún
+   grupo.** La explosión sustituye al cañón en la misma posición y con la misma huella, así que
+   compite consigo misma en el tiempo: el jugador no compara dos cosas en pantalla, compara el
+   fotograma de antes con el de después. En neón ese aviso lo da un salto de tono; en un skin
+   monocromo tiene que darlo la luminancia o no lo da nadie. `verificaSkins` no lo ve porque
+   solo mide los grupos declarados y el contraste contra el fondo. **Vale para todo motor con
+   estados de muerte, vidas o power-ups**: si dos roles nunca coexisten pero uno reemplaza al
+   otro en el sitio, mídelos igual.
+4. **Y la excepción de la misma regla**: en `clasico` la explosión se queda a 1,05× del cañón
+   a propósito. En el gabinete los dos eran el mismo blanco bajo el mismo celofán verde y los
+   separaba la silueta; subirla exigiría ≥20,4:1, que bajo celofán verde no existe sin pintar
+   blanco y romper la premisa. Es la misma concesión que la tuerca de CAÍDA, al revés: allí el
+   neón congelado impedía separar un par, aquí lo impide la física del gabinete.
+
+Dos cosas que quedaron fuera y que **no son olvidos**: las tres filas de RANARIA siguen en
+`pendiente` —no tocaban en esta invocación— y INVASORES no tiene fila en la tabla «de oro» de
+`tests/games/skins.test.ts`, por la misma razón que RANARIA: esa tabla guarda literales
+anteriores a la SPEC 13 y aquí no hay «antes» que copiar.

@@ -4,7 +4,8 @@
 //
 //   npm run db:check
 //
-// Responde dos preguntas, en este orden, porque confundirlas cuesta tiempo:
+// Responde tres preguntas, en este orden, porque confundir las dos primeras
+// cuesta tiempo:
 //
 //   FASE 1 — ¿existe el proyecto?  Un proyecto del plan gratuito puede haberse
 //            pausado o borrado, y entonces su host deja de resolver. Ese caso se
@@ -13,6 +14,10 @@
 //            listar las tres tablas como fallidas.
 //
 //   FASE 2 — ¿está completo el esquema?  Solo si la fase 1 pasa.
+//
+//   FASE 3 — ¿está cerrada la función del trigger?  El revoke de la SPEC 22 es
+//            un privilegio y no un objeto, así que no se ve en ninguna lista de
+//            tablas: es exactamente lo que se olvida al mudarse.
 //
 // Usa la publishable key y no la contraseña de la base A PROPÓSITO: así se
 // comprueba lo que ve la aplicación, con la RLS aplicada, y no lo que vería un
@@ -257,6 +262,68 @@ if (!haySesiones) {
         `rechazado por ${code ?? r.status} — inesperado`,
       );
     }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// FASE 3 — ¿está la función del trigger fuera de la API pública? (SPEC 22)
+// -----------------------------------------------------------------------------
+// public.handle_new_user() es `security definer`: se ejecuta con los permisos de
+// su propietario. Postgres concede EXECUTE a PUBLIC sobre cualquier función
+// nueva, así que por defecto queda publicada como endpoint RPC y cualquiera
+// puede llamarla. La migración 20260912214050 lo revoca; esto comprueba que el
+// revoke sigue puesto, que es justo lo que se pierde en una mudanza.
+//
+// OJO CON EL FALSO VERDE: esta llamada falla TAMBIÉN sin el revoke, pero por
+// otro motivo —una función de trigger no se puede invocar directamente— y ese
+// caso NO cuenta como éxito. Por eso no vale con mirar `r.ok`: hay que mirar el
+// código, y solo dos significan "está cerrada".
+const NO_PUBLICADA = "PGRST202"; // PostgREST ya no la tiene en el schema cache
+const SOLO_COMO_TRIGGER = "0A000"; // "trigger functions can only be called as
+// triggers": la función SIGUE expuesta y lo
+// único que la salva es su tipo de retorno
+
+let rpc = null;
+try {
+  rpc = await fetch(`${URL_SUPABASE}/rest/v1/rpc/handle_new_user`, {
+    method: "POST",
+    headers: { ...CABECERAS, "Content-Type": "application/json" },
+    body: "{}",
+    signal: AbortSignal.timeout(TIMEOUT_CONSULTA),
+  });
+} catch (e) {
+  problemas++;
+  linea("función del trigger", `ERROR de red — ${e.message}`);
+}
+
+if (rpc && rpc.ok) {
+  problemas++;
+  linea("función del trigger", "EJECUTADA — ¡FALLO GRAVE!");
+  console.log("");
+  console.log("    Un anónimo acaba de ejecutar handle_new_user() por REST.");
+  console.log(
+    "    Vuelve a ejecutar supabase/schema.sql: su sección 4b revoca",
+  );
+  console.log("    el permiso.");
+} else if (rpc) {
+  const { code } = await cuerpoDeError(rpc);
+  if (code === NO_PUBLICADA || code === PRIVILEGIO_INSUFICIENTE) {
+    linea("función del trigger", "NO EXPUESTA (correcto)");
+  } else if (code === SOLO_COMO_TRIGGER) {
+    problemas++;
+    linea("función del trigger", "EXPUESTA — falta el revoke");
+    console.log("");
+    console.log("    La función es alcanzable en /rest/v1/rpc/ y solo falla");
+    console.log("    porque es de trigger. Falta el revoke de la sección 4b");
+    console.log("    de schema.sql.");
+  } else {
+    // Rechazada, pero por un motivo que no esperábamos. Mismo criterio que
+    // arriba: no se da por bueno en silencio.
+    problemas++;
+    linea(
+      "función del trigger",
+      `rechazada por ${code ?? rpc.status} — inesperado`,
+    );
   }
 }
 

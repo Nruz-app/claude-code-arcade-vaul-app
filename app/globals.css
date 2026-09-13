@@ -1262,6 +1262,21 @@ a {
   font-size: 9px;
   padding: 8px 12px;
 }
+/* Con el dedo, los tres botones de ASPECTO se quedaban en 32 px de alto —
+   medidos en /juego/invasores/jugar: «1 · NEÓN» 110x32, «2 · RETRO» 120x32 y
+   «3 · CLÁSICO» 141x32 en los cuatro viewports táctiles del banco—, doce por
+   debajo del mínimo de 44. El ancho sobra; lo que faltaba era alto.
+
+   Mismo criterio que `.hud-actions .btn` unas líneas más arriba: el mínimo se
+   decide por CON QUÉ se señala, no por el ancho de la ventana, así que va en
+   `pointer: coarse` y el escritorio se queda en 32 px como siempre. Crece el
+   contenido del overlay (tres renglones a 320 px: +36 px), pero desde que
+   `.game-start` se desplaza eso ya no recorta nada. */
+@media (pointer: coarse) {
+  .game-skins-opciones .btn {
+    min-height: 44px;
+  }
+}
 /* Overlay de arranque. Hasta la SPEC 14 solo decía "PULSA ESPACIO", que en un
    teléfono es una instrucción imposible. Ahora se renderizan los dos textos y
    aquí se elige el que corresponde al puntero: hacerlo en JavaScript obligaría
@@ -1279,6 +1294,42 @@ a {
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
+
+  /* El overlay de arranque de un juego CON selector de ASPECTO no cabe en la
+     pantalla del CRT de un teléfono, y `.crt-screen` lleva `overflow: hidden`:
+     lo que sobra se recortaba por los DOS extremos a la vez, sin aviso y sin
+     forma de llegar a ello. Medido en /juego/invasores/jugar (seis juegos lo
+     comparten; GLOTÓN se libra porque no tiene selector):
+
+       320x568 — pantalla 210x158, contenido 328: 85 px comidos por arriba y 85
+                 por abajo. Se veía «ESC PAUSA», «ASPECTO» y dos de los tres
+                 botones; el titular «TOCA PARA EMPEZAR» y el botón EMPEZAR,
+                 fuera.
+       375x667 — pantalla 199, contenido 271: 36 px por lado.
+       412x915 — pantalla 227, contenido 271: 22 px por lado.
+       844x390 — pantalla 233, contenido 321: 44 px por lado.
+       1440x900 — pantalla 441, contenido 194: cabe, no cambia nada.
+
+     No se arregla encogiendo: los tres botones de aspecto («1 · NEÓN»,
+     «2 · RETRO», «3 · CLÁSICO») miden 110+120+141 px y no entran en una línea
+     de 210 px ni bajando la letra, así que el bloque ocupa tres renglones a
+     320 px de ancho. Acortar esas etiquetas es JSX.
+
+     `overflow-y: auto` deja llegar a lo que sobra, y `safe center` es lo que
+     mantiene el centrado de siempre cuando cabe —el escritorio no se mueve— y
+     cae a `start` solo cuando no: con `center` a secas, un hijo más alto que el
+     contenedor deja su primera mitad por encima del origen del scroll y el
+     titular seguiría siendo inalcanzable. En un navegador sin `safe` la
+     declaración entera se descarta y queda el `center` que ya había, que es el
+     comportamiento de hoy: no empeora nada.
+
+     Va fuera de toda media query a propósito: solo actúa cuando el contenido no
+     cabe, así que no hace falta un corte que lo decida. */
+  overflow-y: auto;
+  align-items: safe center;
+  /* Un respiro para que el titular no salga pegado al borde del tubo al
+     desplazar. No cambia nada mientras el contenido cabe. */
+  padding: 8px 0;
 }
 
 @media (pointer: coarse) {
@@ -1996,6 +2047,19 @@ a {
   letter-spacing: 0.1em;
   text-align: center;
 }
+/* La contrapartida serena de .auth-error: no ha fallado nada, hay algo que
+   leer. Sale de los estilos en línea que llevaba el aviso de "revisa tu correo"
+   en la pantalla de pestañas (SPEC 19). */
+.auth-aviso {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--cyan);
+  color: var(--cyan);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-align: center;
+}
 .auth-header {
   text-align: center;
   margin-bottom: 18px;
@@ -2026,20 +2090,56 @@ a {
   margin: 18px 0;
   border: 1px solid var(--line);
 }
-.auth-tabs button {
+/* Desde la SPEC 19 las pestañas son <a>: dos rutas, no dos estados. Los dos
+   selectores van juntos para que no puedan separarse visualmente. El enlace
+   necesita tres declaraciones que el botón trae de serie: centrado, sin
+   subrayado y ocupando la celda entera de la rejilla. */
+.auth-tabs button,
+.auth-tabs a {
+  display: block;
   padding: 12px;
   font-family: var(--pixel);
   font-size: 9px;
   letter-spacing: 0.14em;
+  text-align: center;
+  text-decoration: none;
   background: transparent;
   border: 0;
   color: var(--ink-dim);
   cursor: pointer;
 }
-.auth-tabs button.on {
+.auth-tabs button.on,
+.auth-tabs a.on {
   background: rgba(0, 245, 255, 0.08);
   color: var(--cyan);
   text-shadow: 0 0 6px rgba(0, 245, 255, 0.5);
+}
+
+/* Enlaces de servicio entre pantallas de /auth: recuperar la contraseña, ir al
+   registro, volver al login. Van en la voz de utilidad de la tarjeta —la misma
+   mono estrecha de las etiquetas de campo— y no en la pixelada, para que no se
+   lean como un cuarto botón en una tarjeta que ya tiene cuatro.
+
+   El hover sube el brillo y no enciende resplandor: en esta hoja el
+   text-shadow significa "estás aquí" (.av-nav a.active, .auth-tabs .on), no
+   "esto se puede pulsar". */
+.auth-link {
+  display: block;
+  margin-top: 14px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-align: center;
+  text-decoration: none;
+  color: var(--ink-dim);
+  transition: color 120ms;
+}
+.auth-link:hover {
+  color: var(--ink);
+}
+.auth-link b {
+  color: var(--cyan);
+  font-weight: inherit;
 }
 .field {
   display: flex;

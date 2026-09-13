@@ -143,7 +143,15 @@ export const SKINS_INVASORES: FichaDeSkins<RolInvasores> = {
       balaInvasor: "#ff8c1a",
       nodriza: "#ffe08a",
       escudo: "#c07800",
-      explosion: "#ffe9a8",
+      // El destello más brillante de la rampa, y no por gusto: la explosión
+      // sustituye al cañón en la misma posición y con la misma huella (las dos
+      // siluetas son 13×8 y draw() pinta una o la otra), así que el cambio de
+      // color es la mitad del aviso de «te han dado». En neón ese aviso lo da
+      // un salto de tono de 137° (cian → oro); aquí solo hay un tono, así que
+      // tiene que darlo la luminancia. Con #ffe9a8 el salto sobre el cañón era
+      // 1,21× —por debajo del 1,3× que la casa exige para distinguir dos
+      // colores—; con #fff3d7 es 1,32×.
+      explosion: "#fff3d7",
       suelo: "rgba(255,176,0,0.45)",
       puntosNodriza: "#fff8e0",
     },
@@ -162,7 +170,12 @@ export const SKINS_INVASORES: FichaDeSkins<RolInvasores> = {
       escudo: "#1f9e3c",
       explosion: "#7dff7d",
       suelo: "rgba(77,255,77,0.45)",
-      puntosNodriza: "#ffffff",
+      // Rojo, no blanco, y es el mismo literal que la nodriza a propósito: el
+      // número flota en la posición exacta donde estaba ella (y = Y_NODRIZA +
+      // ALTO_NODRIZA / 2), o sea dentro de la tira roja. El tubo lo emitía en
+      // blanco; el celofán lo devuelve rojo, igual que a la nave que acaba de
+      // explotar. No compiten: al crear el número se pone `nodriza = null`.
+      puntosNodriza: "#ff2222",
     },
   },
 };
@@ -573,7 +586,11 @@ export function creaEscudos(): Escudo[] {
     // Repartidos a lo ancho por su centro, no por su borde: así los dos de los
     // extremos guardan el mismo margen que la separación entre ellos.
     const centro = (W * (i + 0.5)) / NUM_ESCUDOS;
-    escudos.push({ x: Math.round(centro - ANCHO_ESCUDO / 2), y: Y_ESCUDOS, celdas });
+    escudos.push({
+      x: Math.round(centro - ANCHO_ESCUDO / 2),
+      y: Y_ESCUDOS,
+      celdas,
+    });
   }
   return escudos;
 }

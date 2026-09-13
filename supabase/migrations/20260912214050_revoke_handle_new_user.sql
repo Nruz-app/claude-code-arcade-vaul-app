@@ -1,0 +1,41 @@
+-- Migración 20260912214050_revoke_handle_new_user
+-- SPEC 22: la función del trigger sale de la API pública.
+--
+-- QUÉ ARREGLA
+-- El linter de Supabase avisaba por duplicado —una vez por `anon` y otra por
+-- `authenticated`— de que public.handle_new_user() es una función
+-- `security definer` invocable desde fuera, en /rest/v1/rpc/handle_new_user.
+-- No lo era por decisión de nadie: es el grant por defecto que Postgres da a
+-- PUBLIC sobre cualquier función nueva, más los tres que Supabase añade a sus
+-- roles. La ACL antes de esto era:
+--
+--   {=X/postgres, postgres=X/postgres, anon=X/postgres,
+--    authenticated=X/postgres, service_role=X/postgres}
+--
+-- Ese `=X/postgres` inicial es PUBLIC. Por eso el revoke NO puede limitarse a
+-- `anon` y `authenticated`, que es lo que pide la letra de los dos avisos:
+-- dejaría el permiso de PUBLIC en pie y el linter seguiría protestando.
+--
+-- QUÉ NO CAMBIA
+-- La función sigue siendo `security definer` con `set search_path = ''`, y TIENE
+-- que serlo: se dispara dentro de la transacción del registro, cuando todavía no
+-- hay sesión que satisfaga ninguna política, y public.profiles no tiene política
+-- de insert a propósito (SPEC 04). Pasarla a `security invoker` —la otra
+-- sugerencia del linter— rompería la creación de cuentas.
+-- El trigger on_auth_user_created tampoco se toca.
+--
+-- POR QUÉ EL TRIGGER SIGUE FUNCIONANDO SIN EL GRANT
+-- Postgres comprueba el privilegio EXECUTE de una función de trigger al CREAR
+-- el trigger, no cada vez que se dispara. El propietario (postgres) conserva su
+-- EXECUTE, que es lo único que hace falta.
+--
+-- SI ALGÚN DÍA EL REGISTRO SE ROMPIERA POR ESTO, el escape es devolver el
+-- permiso solo al rol que inserta en auth.users, que PostgREST no expone —así
+-- que los avisos seguirían apagados:
+--
+--   grant execute on function public.handle_new_user() to supabase_auth_admin;
+--
+-- No se aplica de entrada porque hoy no hace falta: queda escrito aquí para que
+-- quien se encuentre el problema no tenga que deducirlo.
+
+revoke all on function public.handle_new_user() from public, anon, authenticated, service_role;
