@@ -73,7 +73,7 @@ claro / un jugador / coste / aporte). El desglose por criterio está en la memor
 | ~~RANARIA~~ | `ranaria`     | ARCADE    | Sí         | **34** | **Ya implementada.** Ganó por coste bajo y mecánica nueva.          |
 | FLUJO       | `flujo`       | PUZZLE    | **No**     |     33 | Segundo PUZZLE. Empataría a 34 si no costara entrada + portada.     |
 | ~~INVASORES~~ | `invasores` | SHOOTER   | Sí         |     31 | **Ya implementado** (SPEC 21). Las dos pegas quedaron respondidas.   |
-| GLOTÓN      | `gloton`      | ARCADE    | Sí         |     31 | El más caro: laberinto + IA de cuatro fantasmas. También el mejor.  |
+| ~~GLOTÓN~~  | `gloton`      | ARCADE    | Sí         |     31 | **Ya implementado** (SPEC 18). El más caro del roadmap y el mejor.  |
 | DUELO PIXEL | `duelo-pixel` | VERSUS    | Sí         |     28 | Marcador 0–11: no compara con el resto del Salón. Y necesita IA.    |
 
 Los que ya tienen id en `GAMES` salen más baratos: **usa el id que ya está, no crees otro.**

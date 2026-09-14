@@ -4,30 +4,46 @@ Es una plataforma para jugar online y competir por la mayor cantidad de puntos.
 
 ## Juegos
 
-El catálogo tiene ocho juegos. **Cinco son reales**: corren sobre un canvas y
+El catálogo tiene ocho juegos. **Siete son reales**: corren sobre un canvas y
 sus partidas se guardan en la base de datos y aparecen en el Salón de la Fama.
-Los otros tres siguen siendo una simulación de la pantalla de juego, a la espera
-de su motor.
+Solo queda uno simulando la pantalla de juego, a la espera de su motor.
 
-| Juego             | Id              | Clásico        | Estado   |
-| ----------------- | --------------- | -------------- | -------- |
-| **ROCAS**         | `rocas`         | Asteroids      | Jugable  |
-| **CAÍDA**         | `caida`         | Tetris         | Jugable  |
-| **BLOQUE BUSTER** | `bloque-buster` | Arkanoid       | Jugable  |
-| **SERPENTINA**    | `serpentina`    | Snake          | Jugable  |
-| **RANARIA**       | `ranaria`       | Frogger        | Jugable  |
-| GLOTÓN            | `gloton`        | Pac-Man        | Simulado |
-| INVASORES         | `invasores`     | Space Invaders | Simulado |
-| DUELO PIXEL       | `duelo-pixel`   | Pong           | Simulado |
+| Juego             | Id              | Clásico        | Estado   | Spec                  |
+| ----------------- | --------------- | -------------- | -------- | --------------------- |
+| **ROCAS**         | `rocas`         | Asteroids      | Jugable  | 05                    |
+| **CAÍDA**         | `caida`         | Tetris         | Jugable  | 08                    |
+| **BLOQUE BUSTER** | `bloque-buster` | Arkanoid       | Jugable  | 09 · sonido en la 12  |
+| **SERPENTINA**    | `serpentina`    | Snake          | Jugable  | 10                    |
+| **RANARIA**       | `ranaria`       | Frogger        | Jugable  | game-jam · sonido: 11 |
+| **GLOTÓN**        | `gloton`        | Pac-Man        | Jugable  | 18                    |
+| **INVASORES**     | `invasores`     | Space Invaders | Jugable  | 21                    |
+| DUELO PIXEL       | `duelo-pixel`   | Pong           | Simulado | —                     |
+
+**DUELO PIXEL está bloqueado por diseño, no por falta de tiempo.** Su marcador de
+0–11 no compara con el resto del Salón de la Fama, y además necesita una IA que
+haga de segundo jugador. No tendrá motor hasta que se resuelva antes cómo puntúa.
 
 Los ids están en español a propósito y no delatan el clásico que son. Son los
 slugs de las URLs: `/juego/serpentina` y `/juego/serpentina/jugar`.
 
-En cualquiera de los cinco juegos reales: la partida no arranca hasta pulsar
+En cualquiera de los siete juegos reales: la partida no arranca hasta pulsar
 **ESPACIO** en el overlay, `ESC` pausa y reanuda, y cambiar de pestaña pausa
-solo. Los controles de cada uno los anuncia el propio overlay.
+solo. Los controles de cada uno los anuncia el propio overlay, y todos se juegan
+también con el mando de la consola, a los lados de la pantalla.
 
-**RANARIA**, el más reciente, es uno de los dos juegos con sonido —el otro es
+**INVASORES** es el más reciente. Una formación de 5×11 baja hacia ti y
+**acelera sola conforme la vacías**, hasta doce pasos por segundo con el último
+invasor vivo; tienes **una sola bala en vuelo**, así que fallar cuesta. Los
+cuatro escudos se erosionan disparo a disparo —los tuyos también— y el hueco que
+abres a tiros es por donde disparas después. Si un invasor llega a tu línea la
+partida termina en el acto, aunque te queden vidas.
+
+**GLOTÓN** es el más caro de los siete: laberinto y cuatro fantasmas con
+personalidad propia. Es el único juego sin selector de aspecto, y a propósito:
+en Pac-Man el color _es_ el juego —el rojo y el rosa son cómo distingues a
+Blinky de Pinky—, así que repintarlo rompería la lectura.
+
+**RANARIA** es uno de los dos juegos con sonido —el otro es
 BLOQUE BUSTER—: suenan el salto y el atropello, y nada más. Cruzas cinco carriles de coches y cuatro de río saltando
 con las flechas o WASD; en el agua solo sobrevives encima de un tronco o de una
 tortuga, y las tortugas se sumergen cada pocos segundos avisando con un
@@ -122,15 +138,26 @@ Basado en /spec y /spec-impl
 Siguiendo las buenas practicas recomendadas aquí:
 https://github.com/Klerith/fernando-skills
 
-Las specs viven en `specs/`, numeradas. Las diecisiete están implementadas: las
-pantallas del MVP (01), la landing y "Acerca de" (02), correcciones de layout
-(03), la autenticación con Supabase (04), ROCAS (05), el registro de partidas
-(06), el Salón de la Fama real (07), CAÍDA (08), BLOQUE BUSTER (09), SERPENTINA
-(10), el sonido de RANARIA (11), el de BLOQUE BUSTER (12), las skins (13), el
-mando táctil (14), el esquema portátil de Supabase (15), la apariencia del
-gamepad (16) y la consola con los controles a los lados (17). Cada
-una lleva una sección de **Decisiones** que explica por qué las cosas quedaron
-así y qué se descartó.
+Las specs viven en `specs/`, numeradas. Hay veintitrés y **veintidós están
+implementadas**: las pantallas del MVP (01), la landing y "Acerca de" (02),
+correcciones de layout (03), la autenticación con Supabase (04), ROCAS (05), el
+registro de partidas (06), el Salón de la Fama real (07), CAÍDA (08), BLOQUE
+BUSTER (09), SERPENTINA (10), el sonido de RANARIA (11), el de BLOQUE BUSTER
+(12), las skins (13), el mando táctil (14), el esquema portátil de Supabase
+(15), la apariencia del gamepad (16), la consola con los controles a los lados
+(17), GLOTÓN (18), las pantallas de acceso y recuperación (19), OAuth con Google
+y GitHub (20), INVASORES (21) y el endurecimiento de seguridad (22).
+
+La **23** —respaldo y migración de los datos de Supabase— está aprobada pero
+todavía **sin implementar**: es la que hará que perder el proyecto del plan
+gratuito deje de costar las partidas.
+
+Aparte de las numeradas está `specs/game-jam/`, que no sigue esa numeración: son
+las que escribe el subagente `game-jam`, una carpeta por juego. Hoy hay una,
+`ranaria`, de la que salió el quinto motor.
+
+Cada una lleva una sección de **Decisiones** que explica por qué las cosas
+quedaron así y qué se descartó.
 
 Aparte de las numeradas está `specs/game-jam/`, una carpeta por juego con la
 spec repartida en seis archivos. La escribe un subagente a partir de un tema
@@ -149,14 +176,19 @@ es texto libre en `game_sessions` y las pestañas del Salón salen del catálogo
    `app/lib/games/types.ts`: recibe un canvas y cuatro callbacks
    (`onScore`, `onLives`, `onLevel`, `onGameOver`) y devuelve un mando con
    `start`, `pause`, `resume`, `end` y `destroy`.
-2. Se registra en `app/lib/games/registry.ts`: una línea en `GAME_ENGINES`, otra
-   en `GAME_CONTROLS` con las teclas que anunciará el overlay y otra en
-   `GAME_PALETAS` con su ficha de skins.
+2. Se registra en `app/lib/games/registry.ts`, que son **cuatro** entradas: una
+   línea en `GAME_ENGINES`, otra en `GAME_CONTROLS` con las teclas que anunciará
+   el overlay, otra en `GAME_PALETAS` con su ficha de skins y otra en
+   `GAME_TOUCH` con los botones del mando. `registry.test.ts` cruza los cuatro
+   mapas, así que olvidarse de uno no pasa inadvertido.
 3. Se le añade `tests/games/<juego>.test.ts`. Las invariantes comunes ya están
-   escritas como suite compartida, así que una línea —
-   `verificaContrato("NOMBRE", createXGame)`— hereda las 27 comprobaciones, y
-   otra —`verificaSkins("NOMBRE", createXGame, SKINS_X)`— las de las paletas;
-   encima va solo lo propio del juego.
+   escritas como suites compartidas, así que **tres líneas heredan 35
+   comprobaciones**: `verificaContrato("NOMBRE", createXGame)` son 27,
+   `verificaSkins("NOMBRE", createXGame, SKINS_X)` otras 3 —que los colores
+   salgan del tema y que montar sin skin pinte igual que con `neon`— y
+   `verificaMando("NOMBRE", "id", createXGame)` las 5 últimas, que despachan de
+   verdad los `code` declarados en `GAME_TOUCH` y comprueban que el motor los
+   consume. Encima va solo lo propio del juego.
 
 Los assets (sprites, hojas de imágenes, mp3) van a `public/` y se referencian
 con ruta absoluta —`/snake-fruits.png`—, nunca relativa al módulo. El sonido lo
@@ -170,6 +202,9 @@ cumplir un motor, con el porqué de cada una, están en
 
 ## Skills usadas
 
+Dos vienen de fuera y están fijadas por hash en `skills-lock.json`, así que no se
+editan a mano:
+
 ```bash
 npx skills@latest add Klerith/fernando-skills
 ```
@@ -177,3 +212,34 @@ npx skills@latest add Klerith/fernando-skills
 ```bash
 npx skills add https://github.com/anthropics/skills --skill frontend-design
 ```
+
+Y tres son **propias del repo**, en `.claude/skills/`, que por eso **no** entran
+en `skills-lock.json`:
+
+| Skill                   | Qué hace                                                                                                                                            |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/nuevo-juego`          | Añade un juego jugable: escribe la spec, para para que la apruebes, implementa el motor, lo registra y escribe sus pruebas.                         |
+| `/spec-imp-game`        | `/spec-impl` con el cierre que una spec de juego siempre necesita: al terminar lanza `skin-designer` y después `mobile-porter`, uno detrás de otro. |
+| `/telegram-arcade-send` | Puente local con el móvil del propietario. Herramienta de desarrollo, como `db:check`; `app/` no la importa ni sabe que existe.                     |
+
+## Subagentes
+
+Seis, en `.claude/agents/`. Lo que los hace útiles no es el prompt sino su
+**memoria**, en `.claude/memoria/`: una tabla por agente que se lee antes de
+trabajar y se actualiza al terminar, y cuyas filas nunca se borran. Es lo que
+impide que vuelvan a proponer, auditar o medir lo mismo cada vez.
+
+| Agente                     | Qué decide o arregla                                           | Escribe en                      |
+| -------------------------- | -------------------------------------------------------------- | ------------------------------- |
+| `game-planner`             | Cuál debería ser el próximo juego del catálogo.                | Nada — solo su memoria.         |
+| `game-jam`                 | Convierte un tema libre en una spec completa, sin supervisión. | `specs/game-jam/<id>/`          |
+| `skin-designer`            | Los tres aspectos (`neon`, `retro`, `clasico`) de un motor.    | El motor que le toca.           |
+| `mobile-porter`            | Cómo se ve el portal en un teléfono.                           | `app/globals.css`, y solo ahí.  |
+| `game-performance-booster` | El coste por fotograma de un motor, sin cambiar un solo píxel. | El motor que le toca.           |
+| `security-auditor`         | Que lo que el portal da por seguro lo siga siendo.             | Cuatro archivos, lista cerrada. |
+
+Estado de sus memorias hoy: `game-planner` al día (siete juegos implementados,
+dos propuestos); `game-performance-booster` con seis motores `optimizado` y solo
+INVASORES sin medir; `skin-designer` con las tres filas de RANARIA aún
+`pendiente`; `security-auditor` con 9 de 47 controles verificados; y
+`mobile-porter` sin empezar.
