@@ -11,7 +11,9 @@
     "format:check": "prettier --check .",
     "test": "vitest",
     "test:run": "vitest run",
-    "db:check": "node --env-file=.env scripts/db-check.mjs"
+    "db:check": "node --env-file=.env scripts/db-check.mjs",
+    "tg:send": "node --env-file=.env scripts/telegram-send.mjs",
+    "tg:recv": "node --env-file=.env scripts/telegram-recv.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

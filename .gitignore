@@ -66,3 +66,8 @@ bash.exe.stackdump
 supabase/config.toml
 supabase/.branches/
 supabase/.temp/
+
+# Marcador de lectura del bot de Telegram (scripts/telegram-recv.mjs): estado
+# local de esta máquina, como el offset de un lector. Versionarlo haría que otra
+# copia del repo se saltase mensajes que aquí ya se leyeron.
+.telegram-offset.json
